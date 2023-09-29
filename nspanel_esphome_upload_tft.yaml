@@ -53,6 +53,11 @@ ota:
   reboot_timeout: 3min
   num_attempts: 3
 
+##### WEB SERVER #####
+web_server:
+  id: web_server_std
+  port: 80
+  
 ##### LOGGER #####
 logger:
   id: logger_std
