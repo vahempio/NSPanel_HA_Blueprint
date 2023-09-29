@@ -66,6 +66,13 @@ web_server:
 rtttl:
   id: buzzer
   output: buzzer_out
+##### CONFIGURE INTERNAL BUZZER #####
+output:
+  ##### BUZZER FOR PLAYING RINGTONES #####
+  - platform: ledc
+    id: buzzer_out
+    pin:
+      number: 21
 
 ##### LOGGER #####
 logger:
