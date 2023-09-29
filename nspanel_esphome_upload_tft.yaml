@@ -206,6 +206,7 @@ binary_sensor:
           - ON for at least 0.8s
         then:
           - logger.log: "Right button - Long click"
+          - rtttl.play: "click4:d=32,o=5,b=100:f,f#"
           ## looks like inverted
           # - lambda: |-
           #     id(nspanel).exit_reparse_mode();
@@ -215,8 +216,9 @@ binary_sensor:
           - ON for at most 0.8s
         then:
           - logger.log: "Right button - Short click"
+          - rtttl.play: "click7:d=32,o=5,b=100:b,b#"
           - lambda: |-
-              id(nspanel).upload_tft("${nextion_update_url_blank}");
+              id(nspanel).upload_tft("${nextion_update_blank_url}");
 
 ##### API not working with dummy-mqtt !!
 api:
