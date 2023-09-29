@@ -8,7 +8,7 @@
 substitutions:
 
   ##### DON'T CHANGE THIS #####
-  version: "4.1dev"
+  version: "4.1dev1"
   #############################
 
 ##### WIFI SETUP #####
@@ -26,6 +26,18 @@ wifi:
 esphome:
   name: ${device_name}
   min_version: 2023.5.0
+#  on_boot:
+#    priority: 601
+#    then:
+#      - wait_until:
+#          condition:
+#            - lambda: !lambda return id(tf_uart).available();
+#      - uart.write:
+#          id: tf_uart
+#          data: "DRAKJHSUYDGBNCJHGJKSHBDN"
+#      - uart.write:
+#          id: tf_uart
+#          data: [0xFF, 0xFF, 0xFF]
 
 ##### TYPE OF ESP BOARD #####
 esp32:
@@ -1665,11 +1677,13 @@ display:
     uart_id: tf_uart
     tft_url: ${nextion_update_url}
     on_page: # I couldn't make this trigger to work, so used text_sensor nspanelevent and localevent instead
-      - lambda: ESP_LOGW("display.disp1", "NEXTION PAGE CHANGED");
+      then:
+        - lambda: ESP_LOGW("display.disp1", "NEXTION PAGE CHANGED");
     on_setup:
       then:
         - lambda: |-
             id(disp1).goto_page("boot");
+            id(disp1).send_command_printf("bkcmd=3");
             id(disp1).set_component_text_printf("boot.esph_version", "%s", "${version}"); // ### esphome-version ###
             id(disp1).show_component("bt_reboot");
             id(timer_reset_all).execute("boot");

@@ -14,6 +14,8 @@ Page boot
         Preinitialize Event
             dim=0
             vis bt_reboot,0
+            covx baud,aux2.txt,0,0
+            baud_rate.txt=aux2.txt+" bps"
             covx display_mode,aux2.txt,0,0
             nspanelevent.txt="{\"page\": \"boot\", \"event\": \"pagechanged\", \"version\": \""+tft_version.txt+"\", \"display_mode\": \""+aux2.txt+"\"}"
             printh 92
@@ -156,6 +158,16 @@ Text bluep_version
         Associated Keyboard: none
         Text               : 
         Max. Text Size     : 9
+    
+Text baud_rate
+    Attributes
+        ID                 : 17
+        Scope              : local
+        Dragging           : 0
+        Send Component ID  : disabled
+        Associated Keyboard: none
+        Text               : 
+        Max. Text Size     : 15
     
 Dual-state Button bt_reboot
     Attributes
