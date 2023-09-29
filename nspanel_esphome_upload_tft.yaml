@@ -44,6 +44,10 @@ esp32:
   board: esp32dev
   framework:
     type: arduino
+  on_boot:
+    priority: 900
+    then:
+      - rtttl.play: "two short:d=4,o=5,b=100:16e6,16e6"
 
 ##### OTA PASSWORD #####
 ota:
@@ -57,7 +61,12 @@ ota:
 web_server:
   id: web_server_std
   port: 80
-  
+
+##### ENABLE RINGTONE MUSIC SUPPORT #####
+rtttl:
+  id: buzzer
+  output: buzzer_out
+
 ##### LOGGER #####
 logger:
   id: logger_std
@@ -118,6 +127,7 @@ button:
     entity_category: config
     on_press:
       - logger.log: "Button pressed: Update TFT display"
+      - rtttl.play: "click1:d=32,o=5,b=100:c,c#"
       - delay: 16ms
       - lambda: |-
             id(nspanel).upload_tft("${nextion_update_url}");
@@ -129,6 +139,7 @@ button:
     entity_category: config
     on_press:
       - logger.log: "Button pressed: Exit reparse"
+      - rtttl.play: "click2:d=32,o=5,b=100:d,d#"
       ## looks like inverted
       # - lambda: |-
       #     id(nspanel).exit_reparse_mode();
@@ -142,6 +153,7 @@ button:
     entity_category: config
     on_press:
       - logger.log: "Button pressed: Start reparse"
+      - rtttl.play: "click3:d=32,o=5,b=100:e,e#"
       ## looks like inverted
       # - lambda: |-
       #     id(nspanel).start_reparse_mode();
@@ -162,6 +174,7 @@ binary_sensor:
           - ON for at least 0.8s
         then:
           - logger.log: "Left button - Long click"
+          - rtttl.play: "click4:d=32,o=5,b=100:f,f#"
           ## looks like inverted
           # - lambda: |-
           #     id(nspanel).exit_reparse_mode();
@@ -171,6 +184,7 @@ binary_sensor:
           - ON for at most 0.8s
         then:
           - logger.log: "Left button - Short click"
+          - rtttl.play: "click5:d=32,o=5,b=100:g,g#"
           - lambda: |-
               id(nspanel).upload_tft("${nextion_update_url}");
   ##### RIGHT BUTTON BELOW DISPLAY TO upload blank TFT #####
@@ -206,6 +220,7 @@ api:
     - service: upload_tft
       then:
         - logger.log: "Service: upload_tft"
+        - rtttl.play: "scale_up:d=32,o=5,b=100:c,c#,d#,e,f#,g#,a#,b"
         - lambda: |-
             id(nspanel).upload_tft("${nextion_update_url}");
     ##### SERVICE TO UPDATE THE TFT FILE from URL #####
@@ -213,5 +228,6 @@ api:
       variables:
         url: string
       then:
+        - rtttl.play: "siren_short:d=8,o=5,b=100:d,e,d"
         - lambda: |-
             id(nspanel).upload_tft(url);
