@@ -38,16 +38,16 @@ wifi:
 esphome:
   name: ${device_name}
   min_version: 2023.5.0
+  on_boot:
+    priority: 900
+    then:
+      - rtttl.play: "two short:d=4,o=5,b=100:16e6,16e6"
 
 ##### TYPE OF ESP BOARD #####
 esp32:
   board: esp32dev
   framework:
     type: arduino
-  on_boot:
-    priority: 900
-    then:
-      - rtttl.play: "two short:d=4,o=5,b=100:16e6,16e6"
 
 ##### OTA PASSWORD #####
 ota:
