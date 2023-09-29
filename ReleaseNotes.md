@@ -9,7 +9,6 @@
 &nbsp;
 ## General
 
-
 &nbsp;
 ## Updating
 Since in this update lots of input to the blueprint changed, we highly recommend you review your settings and make sure all fields have the correct selection. We did our best to support your legacy settings and avoid breaking your system, but please double check your settings if you see something not working as expected.
@@ -26,21 +25,18 @@ Since in this update lots of input to the blueprint changed, we highly recommend
 - [(EN) How To - All important thing you should know - Update](https://github.com/Blackymas/NSPanel_HA_Blueprint/wiki/(EN)-HowTo---All-important-thing-you-should-know#2-update-blueprint)
 - [(DE) How To - Alle wichtigen Dinge die man wissen sollte - Update](https://github.com/Blackymas/NSPanel_HA_Blueprint/wiki/(DE)-HowTo---Alle-wichtigen-Dinge-die-man-wissen-sollte#2-update-blueprint)
 
-#### << ADD TEXT ABOUT UPDATING TFT FIRST AND INSTRUCTIONS FOR WHEN ESPHOME IS UPDATED FIRST >>
-
 &nbsp;
 ## Breaking changes
-1. Baud rate changing
-1. Update order (TFT must be updated before ESPHome)
+1. 
 
 &nbsp;
 ## Overview of all changes
-1. Baud rate: 921600bps
+1. 
 
 &nbsp;
 ## Details of all changes
 
-### 1. Baud rate: 921600bps
+### 1. 
 
 &nbsp;
 ## Next topics we are currently working on
