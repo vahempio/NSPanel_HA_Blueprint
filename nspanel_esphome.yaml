@@ -1526,12 +1526,12 @@ cover:
     name: "${device_name} Cover"
 
     open_action:
-      - switch.turn_off: relay_2
+#      - switch.turn_off: relay_2
       - switch.turn_on: relay_1
     open_duration: ${cover_open_duration}
 
     close_action:
-      - switch.turn_off: relay_1
+#      - switch.turn_off: relay_1
       - switch.turn_on: relay_2
     close_duration: ${cover_close_duration}
 
