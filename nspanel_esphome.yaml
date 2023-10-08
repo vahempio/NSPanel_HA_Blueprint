@@ -1457,6 +1457,8 @@ switch:
     pin:
       number: 22
     restore_mode: RESTORE_DEFAULT_OFF
+    interlock: [relay_2]
+    interlock_wait_time: ${cover_interlock_wait_time}
     on_turn_on:
       then:
         - script.execute:
@@ -1472,6 +1474,8 @@ switch:
     pin:
       number: 19
     restore_mode: RESTORE_DEFAULT_OFF
+    interlock: [relay_1]
+    interlock_wait_time: ${cover_interlock_wait_time}
     on_turn_on:
       then:
         - script.execute:
@@ -1515,6 +1519,25 @@ switch:
       - logger.log: "Relay 2 Local turned On!"
     on_turn_off:
       - logger.log: "Relay 2 Local turned Off!"
+
+##### START - COVER CONFIGURATION #####
+cover:
+  - platform: time_based
+    name: "${device_name} Cover"
+
+    open_action:
+      - switch.turn_off: relay_2
+      - switch.turn_on: relay_1
+    open_duration: ${cover_open_duration}
+
+    close_action:
+      - switch.turn_off: relay_1
+      - switch.turn_on: relay_2
+    close_duration: ${cover_close_duration}
+
+    stop_action:
+      - switch.turn_off: relay_1
+      - switch.turn_off: relay_2
 
 ##### START - NUMBER CONFIGURATION #####
 number:
