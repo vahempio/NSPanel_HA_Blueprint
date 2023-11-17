@@ -17,10 +17,10 @@ wifi:
     - id: wifi_default
       ssid: ${wifi_ssid}
       password: ${wifi_password}
-  power_save_mode: none
-  ap:
-    ssid: "${device_name}"
-    password: ${wifi_password}
+#  power_save_mode: none
+#  ap:
+#    ssid: "${device_name}"
+#    password: ${wifi_password}
 
 ##### ESPHOME CONFIGURATION #####
 esphome:
@@ -31,7 +31,7 @@ esphome:
 esp32:
   board: esp32dev
 
-captive_portal:
+#captive_portal:
 
 web_server:
   id: web_server_std
