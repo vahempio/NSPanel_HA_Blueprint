@@ -18,7 +18,7 @@ button:
       - logger.log: "Button pressed: Exit reparse"
       - script.execute: exit_reparse
 
-captive_portal:
+#captive_portal:
 
 esp32:
   framework:
