@@ -8,3 +8,8 @@ Nextion2Text.*
 
 # Ignore IntelliJ IDEA project directory
 .idea
+
+# Ignore dev folder
+dev
+
+nspanel_esphome_prebuilt.yaml
