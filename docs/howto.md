@@ -12,15 +12,15 @@ You can write a short message with your findings, and we'll include it here.
 Below are the topics covered in this document, each with relevant tips and solutions.
 
 1. [How do I create "Issues" when I have a problem ](#how-to-create-issues-when-i-have-a-problem)
-1. [Update Blueprint](#update-blueprint)
-1. [Update ESPHome](#update-esphome)
-1. [Update TFT](#update-tft)
-1. [Notification via HA](#notification-via-ha)
-1. [Climate control with relays](#climate-control-with-relays)
-1. [Call a page directly](#call-a-page-directly)
-1. [Play RTTTL Sound](#play-rtttl-sound)
-1. [Start automations via Input_Boolean](#start-automations-via-input_boolean)
-1. [Updating Wi-Fi and OTA passwords in ESPHome with this project](#updating-wi-fi-settings-and-ota-passwords-in-esphome-with-this-project)
+2. [Update Blueprint](#update-blueprint)
+3. [Update ESPHome](#update-esphome)
+4. [Update TFT](#update-tft)
+5. [Notification via HA](#notification-via-ha)
+6. [Climate control with relays](#climate-control-with-relays)
+7. [Call a page directly](#call-a-page-directly)
+8. [Play RTTTL Sound](#play-rtttl-sound)
+9. [Start automations via Input_Boolean](#start-automations-via-input_boolean)
+10. [Updating Wi-Fi and OTA passwords in ESPHome with this project](#updating-wi-fi-settings-and-ota-passwords-in-esphome-with-this-project)
 
 ## How to create "issues" when I have a problem
 
@@ -70,9 +70,6 @@ use_blueprint:
     accuweather: home_wetter
     outdoortemp: sensor.terrasse_garage_motion_sensor_temperature
     humidity: sensor.kinderzimmer_lea_temperatur_sensor_humidity
-    hotwatertemp: sensor.hotwater_temp
-    hotwatercharge: switch.charge
-    heatingsystemflame: binary_sensor.flamestatus
     climate: climate.nspanel_buro
     left_button_entity: light.haustur_spot_2
     right_button_entity: light.haustur_spot_1
@@ -135,29 +132,30 @@ The new firmware will be built and then flashed to your panel, which will restar
 > [!IMPORTANT]
 > These instructions are for updating a panel where an older version of these files are already installed.
 
-1. (**Arduino only**) Download from our [GitHub repository](https://github.com/Blackymas/NSPanel_HA_Blueprint/) the latest version of the TFT file relative to your panel's model.
-2. (**Arduino only**) Upload this file to your local www (http) server. Please use the same URL as indicated by the substitution `nextion_update_url` in your device's YAML.
-3. Go to ***Settings --> Devices & Services --> Integrations***, select the display under the ESPHome integration.
-4. Press the switch "**Update TFT Display**" under **Configuration**.
-5. The display starts the update process and then restarts.
+1. Go to ***Settings --> Devices & Services --> Integrations***, select the display under the ESPHome integration.
+2. Select the "**Update TFT Display - Model**" accordingly, under **Configuration**. 
+3. Press the button "**Update TFT Display**".
+4. The display starts the update process and then restarts.
 
 ## Notification via HA
-To show a notification on the NSPAnel, the following service call can be used:
+To show a notification on the NSPanel, the following service call can be used:
 
 ```yaml
 service: esphome.panelname_notification_show
 data:
-  label: Example text
-  text: Example text
+  label: Example label text
+  message: Example message text
 ```
+> [!NOTE]
+> For more details about this service call, please refer to our [API documentation](api.md#notification-show-service-notification_show).
 
 To clear any notifications, the following service call can be used:
 
 ```yaml
 service: esphome.panelname_notification_clear
-data: {}
 ```
-
+> [!NOTE]
+> For more details about this service call, please refer to our [API documentation](api.md#notification-clear-service-notification_clear).
 
 To use the notifications in an automation, again simply use the service call as shown in the example below:
 
@@ -174,11 +172,14 @@ trigger:
   - service: esphome.panelname_notification_show
     data:
       label: Motion Detected
-      text: Example for a Notification on the Panel Screen
+      message: Example for a Notification on the Panel Screen
 ```
 
 ## Climate control with Relays
-> Attention!! Although these instructions are still valid, since v4.0 there is a better way to setup a climate control using the panel's relays an the [add-on climate](addon_climate.md).
+> [!ATTENTION]
+> Although these instructions are still valid, since v4.0 there is a better way to setup a climate control using the panel's relays an the [add-on climate](addon_climate.md), 
+> which will continue to work even if Home Assistant and/or WiFi are not available. 
+> You probably only want to use this approach, if you are not using the build-in thermometer. 
 
 In order to use the NSPanel to control a radiator or underfloor heating, at least one Generic Thermostat must be created in the HA.
 More information can be found here: https://www.home-assistant.io/integrations/generic_thermostat/
@@ -215,11 +216,11 @@ The following services enable this functionality:
 
 ### Basic Pages
 
-To open a specific page, you can utilize the `esphome.xxxxxx_send_command_printf` service.
+To open a specific page, you can utilize the `esphome.xxxxxx_command` service.
 Here's an example that demonstrates how to open the `home` page:
 
 ```yaml
-service: esphome.xxxxx_send_command_printf
+service: esphome.xxxxx_command
 data:
   cmd: page home
 ```
@@ -237,58 +238,31 @@ Currently, the following pages can be accessed using this method:
 - `home`
 - `qrcode`
 - `screensaver`
+- `utilities`
 
 For instance, to directly navigate to button page 2, replace `home` in the command with `buttonpage02`:
 
 ```yaml
-service: esphome.xxxxx_send_command_printf
+service: esphome.xxxxx_command
 data:
   cmd: page buttonpage02
 ```
+> [!NOTE]
+> For more details about this service call, please refer to our [API documentation](api.md#command-service-command).
 
 ### Entity-Specific Pages
 
 For entity-specific pages, a more detailed call is required as it involves specifying the entity.
-You can use the service `esphome.xxxxx_open_entity_settings_page` as shown in the following example:
+You can use the service `esphome.xxxxx_entity_details_show` as shown in the following example:
 
 ```yaml
-service: esphome.xxxxx_open_entity_settings_page
+service: esphome.xxxxx_entity_details_show
 data:
-  page: climate
-  page_label: My thermostat
-  page_icon: \uE237
-  page_icon_color:
-    - 255
-    - 0
-    - 0
-  entity: climate.my_thermostat
-  back_page: home
+  entity_id: climate.my_thermostat
+  back_page: buttonpage01
 ```
-
-The required parameters for this service are as follows:
-
-- **page**: The page to be opened, typically the same as the domain of the entity (e.g., `climate`, `cover`, `light`).
-- **page_label**: The title of the page, usually the friendly name of the entity.
-- **page_icon**: The UTF-8 code for the icon to be displayed at the top left of the page.
-Supported icons are listed on the [HASwitchPlate Material Design Icons](https://htmlpreview.github.io/?https://github.com/jobr99/Generate-HASP-Fonts/blob/master/cheatsheet.html) page.
-The code is a 4-character hex string found near the icon in the list. Prefix the icon code with `\u` to indicate it's a UTF-8 hex code.
-- **page_icon_color**: An RGB array with values from 0 to 255 for red, green, and blue.
-ESPHome automatically converts this array to a [16-bit RGB (RGB565)](https://en.wikipedia.org/wiki/List_of_monochrome_and_RGB_color_formats#16-bit_RGB_(also_known_as_RGB565)) format,
-which may lead to some color distortion.
-- **entity**: The `entity_id` from Home Assistant for the relevant entity.
-- **back_page**: The page to return to when the detailed page is manually closed or after a page timeout.
-Only [Basic pages](#basic-pages) are supported.
-
-### Notification Page
-
-To display the notification page, use the `esphome.xxxxx_notification_show` service as shown below:
-
-```yaml
-service: esphome.xxxxx_notification_show
-data:
-  label: "Notification title"
-  message: "Attention! This is a placeholder for your notification message."
-```
+> [!NOTE]
+> For more details about this service call, please refer to our [API documentation](api.md#entity-details-show-service-entity_details_show).
 
 ### Wake-up Page
 
@@ -313,11 +287,14 @@ If the panel is already active, the current page remains displayed.
 This feature is particularly useful in conjunction with a motion sensor to wake up your panel automatically.
 By repeatedly calling this service whenever motion is detected, the panel can be either woken up or have its sleep timeout timer reset (if `reset_timer` is set to `true`).
 
+> [!NOTE]
+> For more details about this service call, please refer to our [API documentation](api.md#wake-up-service-wake_up).
+
 ## Play RTTTL Sound
 
 HA can send a RTTTL to the NSPanel, custom melodies are possible.
 
-The use this function, the following service is called: ***nspanel_play_rtttl*** 
+The use this function, the following service is called: `rtttl_play`
 
 You can find many RTTTL strings on the web, the important thing is that they must start with the name and then a colon.
 
@@ -327,11 +304,14 @@ Here is an example:
 The Simpsons:d=4,o=5,b=160:c.6,e6,f#6,8a6,g.6,e6,c6,8a,8f#,8f#,8f#,2g,8p,8p,8f#,8f#,8f#,8g,a#.,8c6,8c6,8c6,c6
 ```
 
-![image-20230320222454441](pics/image-20230320222454441.png)
+![HA - Developer Tools - Services - RTTTL Play](pics/ha_developer_tools_services_rtttl_play.png)
 
 More information: https://esphome.io/components/rtttl.html#common-beeps
 
 More songs: https://codebender.cc/sketch:109888#RTTTL%20Songs.ino
+
+> [!NOTE]
+> For more details about this service call, please refer to our [API documentation](api.md#rtttl-play-service-rtttl_play).
 
 ## Start Automations via Input_Boolean
 

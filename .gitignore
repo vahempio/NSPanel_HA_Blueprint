@@ -10,6 +10,4 @@ Nextion2Text.*
 .idea
 
 # Ignore dev folder
-#dev
-
-nspanel_esphome_prebuilt*.bin
+dev

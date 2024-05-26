@@ -3,6 +3,8 @@
 Table of contents:
 - [Description](#description)
 - [Instructions](#instructions)
+- [Memory Management](#memory-management)
+- [Removing Standard Settings](#removing-standard-settings)
 - [Examples](#examples)
   - [API encryption](#api-encryption)
   - [Custom OTA password](#custom-ota-password)
@@ -21,12 +23,17 @@ Table of contents:
   - [Scheduled actions](#scheduled-actions)
     - [Scheduled relay](#scheduled-relay)
     - [Scheduled climate](#scheduled-climate)
-  - [Framework `esp-idf`](#framework-esp-idf)
+  - [Frameworks](#frameworks)
+    - [Framework `arduino`](#framework-arduino)
+    - [Framework `esp-idf`](#framework-esp-idf)
   - [Bluetooth proxy](#bluetooth-proxy)
+  - [BLE tracker](#ble-tracker)
   - [Logger via UART](#logger-via-uart)
   - [Climate custom presets](#climate-custom-presets)
   - [Push button / Momentary switch](#push-button--momentary-switch)
   - [Expose relay fallback switch](#expose-relay-fallback-switch)
+  - [Relay Interlocking](#relay-interlocking)
+  - [Remove non-essential components](#remove-non-essential-components)
 
 &nbsp;
 &nbsp;
@@ -55,7 +62,8 @@ You should add your customizations at the end of your ESPHome yaml, as in the ex
 ```yaml
 substitutions:
   # Settings - Editable values
-  device_name: "YOUR_NSPANEL_NAME" 
+  device_name: "YOUR_NSPANEL_NAME"
+  friendly_name: "Your panel's friendly name"
   wifi_ssid: !secret wifi_ssid
   wifi_password: !secret wifi_password
 
@@ -77,24 +85,77 @@ logger:
 
 ##### My customization - End #####
 
-# Core and optional configurations
+# Basic and optional configurations
 packages:
   remote_package:
     url: https://github.com/Blackymas/NSPanel_HA_Blueprint
     ref: main
-    files:
-      - nspanel_esphome.yaml # Core package
-      # Optional advanced and add-on configurations
-      # - advanced/esphome/nspanel_esphome_advanced.yaml
-      # - nspanel_esphome_addon_climate_cool.yaml
-      - nspanel_esphome_addon_climate_heat.yaml
-      # - nspanel_esphome_addon_climate_dual.yaml
     refresh: 300s
-
-esp32:
-  framework:
-    type: esp-idf
+    files:
+      - nspanel_esphome.yaml # Basic package
+      # Optional advanced and add-on configurations
+      # - esphome/nspanel_esphome_advanced.yaml
+      # - esphome/nspanel_esphome_addon_ble_tracker.yaml
+      # - esphome/nspanel_esphome_addon_bluetooth_proxy.yaml
+      # - esphome/nspanel_esphome_addon_climate_cool.yaml
+      # - esphome/nspanel_esphome_addon_climate_heat.yaml
+      # - esphome/nspanel_esphome_addon_climate_dual.yaml
 ```
+
+## Memory Management
+When adding new components or code to your ESP32, it's important to be mindful of memory usage.
+Your device has limited memory, and every addition uses some of this precious resource.
+
+### Understanding Memory Usage
+After compiling your firmware, you'll see a summary showing how much memory your firmware needs.
+Here's what it might look like:
+
+```log
+Successfully created esp32 image.
+Linking .pioenvs/office-workstation-panel/firmware.elf
+RAM:   [=         ]  10.5% (used 34484 bytes from 327680 bytes)
+Flash: [=======   ]  67.5% (used 1239253 bytes from 1835008 bytes)
+Building .pioenvs/office-workstation-panel/firmware.bin
+Creating esp32 image...
+Successfully created esp32 image.
+```
+
+- **Static Memory**: This is the memory required to load your firmware.
+Running your firmware requires additional memory.
+- **Dynamic Memory**: This is the memory allocated while your firmware is running.
+ESPHome checks if your static memory usage exceeds your device's limits to prevent installation issues, but it doesn't check dynamic memory usage.
+**Aim to keep static RAM usage below 20% and static Flash usage below 75%** to ensure there's enough room for dynamic operations.
+
+### Risks of Exceeding Memory Limits
+Exceeding memory limits can lead to issues:
+- **During Compilation**: ESPHome might prevent firmware installation if static memory is too high.
+- **During Runtime**: Exceeding dynamic memory can cause unexpected restarts.
+- **During Startup**: If your device runs out of memory at startup, it may not load the firmware, resulting in a black screen and an unresponsive device.
+The solution is to use a serial cable to reflash your device with a lighter firmware.
+
+### Tips for Managing Memory
+- Be cautious when adding memory-intensive components like `bluetooth_proxy`.
+- Compile your firmware with the option to download it before installation.
+This lets you check static memory usage without risking wireless installation issues.
+
+## Removing Standard Settings
+You can use customizations to remove certain default components or settings from this project.
+This is useful for altering standard settings or freeing up memory for additional components.
+Here's how you might remove some default settings:
+
+```yaml
+# Removes the `captive_portal` component
+captive_portal: !remove
+
+# Removes the OTA password
+ota:
+  password: !remove
+```
+
+> [!ATTENTION]
+> Be aware of the implications before removing components or settings.
+> Some of them are crucial for allowing your panel to interact correctly with the blueprint or for enabling ESPHome to install the firmware Over The Air.
+> Incorrect removals could render your panel unusable, potentially requiring a reflash via a serial cable.
 
 ## Examples
 
@@ -166,6 +227,9 @@ api:
 ### Manual IP
 Set IP address manually.
 
+> [!ATTENTION]
+> At least one DNS server is required to enable TFT transfer direcly from GitHub, otherwise use `nextion_update_url`.
+
 ```yaml
 # Set IP address manually
 wifi:
@@ -175,6 +239,8 @@ wifi:
         static_ip: 192.168.0.123
         gateway: 192.168.0.1
         subnet: 255.255.255.0
+        dns1: 1.1.1.1  # At least one DNS server is required to enable TFT transfer direcly from GitHub, otherwise use `nextion_update_url`.
+        dns2: 8.8.8.8
 ```
 
 ### Hidden Wi-Fi
@@ -212,7 +278,6 @@ ESPHome takes it's time from Home Assistant, however you can configure it to use
 time:
   - id: !extend time_provider
     platform: sntp
-    timezone: Europe/Stockholm
     servers:
       - !secret mysntpserver
       - europe.pool.ntp.org
@@ -225,11 +290,11 @@ Creates a binary sensor to indicate either when the display is showing some page
 ```yaml
 # Is display awake?
 binary_sensor:
-  - name: ${device_name} Display state
+  - name: Display state
     id: display_state
     platform: template
     lambda: |-
-      return (id(current_page).state != "screensaver");
+      return (current_page->state != "screensaver");
 ```
 
 You can easily invert the meaning to have a sensor for display sleeping:
@@ -237,11 +302,11 @@ You can easily invert the meaning to have a sensor for display sleeping:
 ```yaml
 # Is display sleeping?
 binary_sensor:
-  - name: ${device_name} Display sleeping
+  - name: Display sleeping
     id: display_sleeping
     platform: template
     lambda: |-
-      return (id(current_page).state == "screensaver");
+      return (current_page->state == "screensaver");
 ```
 
 ### Deep sleep
@@ -279,6 +344,7 @@ You can find more ideas around this on [#955](https://github.com/Blackymas/NSPan
 ### Enforce time zone
 Until v3.4 (including), the time was coming from Home Assistant with it's timezone, so the Blueprint was sending the info with no transformation, to the panel.
 From v4.0, the time reference still coming from HA (or optionally from a time server), but is calculated in ESPHome, which will try to detect the timezone from the server.
+From v4.3.3 or later, the time still calculated on ESPHome side, however, you can select the timezone on the Blueprint, making this customization obsolete.
 
 If your system is not showing the time in the correct timezone, it's probabily ESPHome not succeeding on finding your time zone.
 You can easily force a timezone by adding this to your ESPHome settings:
@@ -306,7 +372,7 @@ There are several ways to wake-up or put your panel to sleep, but in this exampl
 ```yaml
 button:
   # Adds a button to put the panel to sleep
-  - name: ${device_name} Sleep
+  - name: Sleep
     id: force_sleep
     platform: template
     icon: mdi:sleep
@@ -314,10 +380,10 @@ button:
       then:
         - logger.log: Button Sleep pressed
         - lambda: |-
-            if (id(current_page).state != "screensaver") id(disp1).goto_page("screensaver");
+            goto_page->execute("screensaver");
   
   # Adds a button to wake-up the panel (similar to the existing service)
-  - name: ${device_name} Wake-up
+  - name: Wake-up
     id: force_wake_up
     platform: template
     icon: mdi:alarm
@@ -325,10 +391,10 @@ button:
       then:
         - logger.log: Button Wake-up pressed
         - lambda: |-
-            if (id(current_page).state == "screensaver") id(disp1).goto_page(id(wakeup_page_name).state.c_str());
-            // id(timer_page).execute(id(wakeup_page_name).state.c_str()); // enable this if you want page timeout to be reset
-            id(timer_sleep).execute(id(wakeup_page_name).state.c_str(), int(id(timeout_sleep).state));
-            id(timer_dim).execute(id(wakeup_page_name).state.c_str(), int(id(timeout_dim).state));
+            if (current_page->state == "screensaver") id(disp1).goto_page(id(wakeup_page_name).state.c_str());
+            // timer_page->execute(); // enable this if you want page timeout to be reset
+            timer_sleep->execute();
+            timer_dim->execute();
 ```
 
 ### Set display as a light
@@ -338,7 +404,7 @@ and even use this in your automation to control when your panel is on with the s
 ```yaml
 light:
   # Add the display as a light in Home Assistant
-  - name: ${device_name} Display
+  - name: Display
     id: display_light
     icon: mdi:tablet-dashboard
     platform: monochromatic
@@ -349,12 +415,12 @@ light:
         - lambda: |-
             ESP_LOGD("light.display_light", "Turn-on");
             if (current_page->state == "screensaver") disp1->goto_page(wakeup_page_name->state.c_str());
-            timer_reset_all->execute(wakeup_page_name->state.c_str());
+            timer_reset_all->execute();
     on_turn_off:
       then:
         - lambda: |-
             ESP_LOGD("light.display_light", "Turn-off");
-            disp1->goto_page("screensaver");
+            goto_page->execute("screensaver");
 
 output:
   # Output required by `display_light` to send the commands to Nextion
@@ -373,12 +439,12 @@ script:
   - id: !extend page_changed
     then:
       - lambda: |-
-          ESP_LOGD("script.page_changed(custom)", "page: %s", page.c_str());
+          ESP_LOGD("script.page_changed(custom)", "page: %s", current_page->state.c_str());
           ESP_LOGV("script.page_changed(custom)", "is_on(): %s", display_light->current_values.is_on() ? "True" : "False");
-          if (page == "screensaver" and display_light->current_values.is_on()) {
+          if (current_page->state == "screensaver" and display_light->current_values.is_on()) {
             auto call = display_light->turn_off();
             call.perform();
-          } else if (page != "screensaver" and (not display_light->current_values.is_on())) {
+          } else if (current_page->state != "screensaver" and (not display_light->current_values.is_on())) {
             auto call = display_light->turn_on();
             call.perform();
           }
@@ -387,7 +453,7 @@ script:
   - id: !extend set_brightness
     then:
       - lambda: |-
-          ESP_LOGD("script.set_brightness(custom)", "brightness: %i%%", brightness);
+          ESP_LOGD("script.set_brightness(custom)", "brightness: %.0f%%", brightness);
           uint8_t current_light_brightness = int(round(display_light->current_values.is_on() ? (display_light->current_values.get_brightness() * 100.0f) : 0.0));
           ESP_LOGV("script.set_brightness(custom)", "current_light_brightness: %i%%", current_light_brightness);
           if (brightness != current_light_brightness) {
@@ -474,40 +540,45 @@ time:
               target_temperature: 18°C
 ```
 
-### Framework `esp-idf`
+### Frameworks
 > [!IMPORTANT]
-> When switching from `arduino` to `esp-idf`, make sure to update the device with a serial cable as the partition table is different between the two frameworks
-as [OTA Update Component](https://esphome.io/components/ota) updates will not change the partition table.
+> When switching between frameworks, make sure to update the device with a serial cable as the partition table is different between the two frameworks
+as [OTA Update Component](https://esphome.io/components/ota) updates will not change the partition table. While it will appear to work, the device will boot the old framework after a reset.
 
-The `arduino` protocol still more popular and therefore more components are available, but as `esp-idf` is maintained by EspressIF and is kept updated,
-more boards are supported and the memory management is better, making it ideal if you wanna customize your panel to support memory consumption functionalities,
-like `bluetooth_proxy` or [Improv](https://www.improv-wifi.com/).
-
-This project currently uses `arduino` as default framework, but we are planning to set `esp-idf` as default from March 2024.
-In any case, you can overlap the settings with this customization.
+This project currently uses `esp-idf` as default framework.
+You can overlap the settings with this customization.
 
 > [!NOTE]
 > For more info about frameworks, please visit [ESPHome docs](https://esphome.io/components/esp32).
 
+`esp-idf` is maintained by EspressIF and is kept updated,
+more boards are supported and the memory management is better, making it ideal if you wanna customize your panel to support memory consumption functionalities,
+like `bluetooth_proxy` or [Improv](https://www.improv-wifi.com/). Consequently, this project uses `esp-idf` as the default framework since `v4.3`. 
+
+However, the `arduino` protocol still very popular and, therefore, more components are available and the project allows to switch between the frameworks 
+by adding the following lines in your panel's yaml file.
+
+#### Framework `arduino`
+```yaml
+# Change framework to `arduino`
+esp32:
+  framework:
+    type: arduino
+```
+#### Framework `esp-idf`
 ```yaml
 # Change framework to `esp-idf`
+# (should not be required)
 esp32:
   framework:
     type: esp-idf
 ```
 
-### Bluetooth proxy
-> [!IMPORTANT]
-> The [ESP32 Platform](#framework-esp-idf) component should be configured to use the `esp-idf` framework,
-> as the `arduino` framework uses significantly more memory and performs poorly with the Bluetooth proxy enabled.
+### Bluetooth Proxy
+Please refer to the "[Add-on: Bluetooth Proxy](addon_bluetooth_proxy.md)" guide.
 
-```yaml
-# Enable Bluetooth proxy
-bluetooth_proxy:
-# Set Wi-Fi power save mode to "LIGHT" as required for Bluetooth on ESP32
-wifi:
-  power_save_mode: LIGHT
-```
+### BLE Tracker
+Please refer to the "[Add-on: BLE Tracker Proxy](addon_ble_tracker.md)" guide.
 
 ### Logger via UART
 
@@ -587,8 +658,93 @@ Subsequent activations will trigger `light.toggle` from the blueprint, as this f
 ```yaml
 # Expose relay local control switch to Home Assistant
 switch:
-  - id: !extend relay1_local
+  - name: Relay 1 Local
+    platform: template
+    id: relay1_local
+    entity_category: config
     internal: false
-  - id: !extend relay2_local
+    lambda: |-
+      return (id(relay_settings) & nspanel_ha_blueprint::RelaySettings::Relay1_Local);
+    turn_on_action:
+      - lambda: nspanel_ha_blueprint::update_bitwise_setting(id(relay_settings), true, RelaySettings::Relay1_Local);
+    on_turn_on:
+      - logger.log: "Relay 1 Local turned On!"
+    turn_off_action:
+      - lambda: nspanel_ha_blueprint::update_bitwise_setting(id(relay_settings), false, RelaySettings::Relay1_Local);
+    on_turn_off:
+      - logger.log: "Relay 1 Local turned Off!"
+  - name: Relay 2 Local
+    platform: template
+    id: relay2_local
+    entity_category: config
     internal: false
+    lambda: return (id(relay_settings) & nspanel_ha_blueprint::RelaySettings::Relay2_Local);
+    turn_on_action:
+      - lambda: nspanel_ha_blueprint::update_bitwise_setting(id(relay_settings), true, RelaySettings::Relay2_Local);
+    on_turn_on:
+      - logger.log: "Relay 2 Local turned On!"
+    turn_off_action:
+      - lambda: nspanel_ha_blueprint::update_bitwise_setting(id(relay_settings), false, RelaySettings::Relay2_Local);
+    on_turn_off:
+      - logger.log: "Relay 2 Local turned Off!"
+```
+
+### Relay Interlocking
+This is using ESPHome capability to prevents the two relays to be active at the same time, which could be useful in some cases,
+like to control a cover like discussed in [#965](https://github.com/Blackymas/NSPanel_HA_Blueprint/issues/965).
+
+> [!ATTENTION]
+> There are some considerations about using software interlocking on the [ESPHome GPIO Switch documentation](https://esphome.io/components/switch/gpio.html#interlocking).
+Please read that carefully to understand what this is doing.
+
+```yaml
+switch:
+  # Prevents the two relays to be on simultaneously
+  - id: !extend relay_1
+    interlock: [relay_1, relay_2]
+    interlock_wait_time: 500ms  # Please adjust this accordingly
+  - id: !extend relay_2
+    interlock: [relay_1, relay_2]
+    interlock_wait_time: 500ms  # Please adjust this accordingly
+```
+
+### Remove non-essential components
+This can be useful to free-up memory, so other custom components could be used instead.
+
+```yaml
+# Removes captive portal
+captive_portal: !remove
+
+# Removes embedded web server
+web_server: !remove
+```
+
+### Restart with 15s button press
+This could be used to have an easy way to restart your panel locally in addition to the [reset pin in the bottom of your panel](pics/eu_reset_button.png).
+
+```yaml
+binary_sensor:
+  # Restarts the Nextion display after pressing and holding the left button for 15s
+  - id: !extend left_button
+    on_multi_click:
+      - timing:
+          - ON for at least 15.0s
+        invalid_cooldown: ${invalid_cooldown}
+        then:  # Restart the display
+          - switch.turn_off: screen_power
+          - delay: 5s
+          - switch.turn_on: screen_power
+          - delay: 2s
+          - lambda: disp1->soft_reset();
+          - delay: 2s
+          - script.execute: setup_sequence
+
+  # Restarts ESPHome after pressing and holding the right button for 15s
+  - id: !extend right_button
+    on_multi_click:
+      - timing:
+          - ON for at least 15.0s
+        invalid_cooldown: ${invalid_cooldown}
+        then:  # Restart the panel
+          - button.press: restart_nspanel
 ```
