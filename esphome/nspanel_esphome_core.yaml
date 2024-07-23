@@ -1252,17 +1252,13 @@ binary_sensor:
           - logger.log: "Left button - Short click"
           - if:
               condition:
-                or:
-                  - lambda: return (id(relay_settings) & RelaySettings::Relay1_Local);
-                  - and:
-                      - lambda: return (id(relay_settings) & RelaySettings::Relay1_Fallback);
-                      - or:
-                          - not:
-                              - api.connected:
-                          - not:
-                              - wifi.connected:
+                lambda: 'return id(ns_cover).current_operation == CoverOperation::COVER_OPERATION_IDLE;'
               then:
-                - switch.toggle: relay_1
+                - cover.open: ns_cover
+                - logger.log: "Open cover"
+              else:
+                - cover.stop: ns_cover
+                - logger.log: "Stop cover"
           - script.execute:
               id: ha_button
               page: !lambda return current_page->state.c_str();
@@ -1292,17 +1288,13 @@ binary_sensor:
           - logger.log: "Right button - Short click"
           - if:
               condition:
-                or:
-                  - lambda: return (id(relay_settings) & RelaySettings::Relay2_Local);
-                  - and:
-                      - lambda: return (id(relay_settings) & RelaySettings::Relay2_Fallback);
-                      - or:
-                          - not:
-                              - api.connected:
-                          - not:
-                              - wifi.connected:
+                lambda: 'return id(ns_cover).current_operation == CoverOperation::COVER_OPERATION_IDLE;'
               then:
-                - switch.toggle: relay_2
+                - cover.close: ns_cover
+                - logger.log: "Close cover"
+              else:
+                - cover.stop: ns_cover
+                - logger.log: "Stop cover"
           - script.execute:
               id: ha_button
               page: !lambda return current_page->state.c_str();
@@ -1781,6 +1773,7 @@ switch:
 cover:
   - platform: time_based
     name: "${device_name} Cover"
+    id: "ns_cover"
 
     open_action:
 #      - switch.turn_off: ${cover_close_relay_def}
