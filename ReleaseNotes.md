@@ -28,7 +28,7 @@ This move is part of our ongoing efforts to enhance the memory capacity and expa
 For users updating to this version:
 - **Flashing Required**: To adopt the ESP-IDF framework, flashing your device using a serial cable is necessary. This step mirrors the initial custom firmware setup process.
 - **Arduino Framework Still Available**: For those who prefer the `arduino` framework or require Over-The-Air (OTA) updates, it remains an option.
-Detailed guidance on how to choose your framework is provided in our [customization documentation](https://github.com/Blackymas/NSPanel_HA_Blueprint/blob/main/docs/customization.md#frameworks).
+Detailed guidance on how to choose your framework is provided in our [customization documentation](docs/customization.md#frameworks).
 
 This transition is a significant milestone for us, promising a robust platform for our community.
 We're here to help with any questions or assistance needed during this change.
@@ -36,7 +36,7 @@ For more details and support, visit our [community discussion](https://github.co
 
 ## Updating
 Please review your settings post-update to ensure compatibility.
-Refer to the update procedures [here](https://github.com/Blackymas/NSPanel_HA_Blueprint/blob/main/docs/howto.md#update-blueprint).
+Refer to the update procedures [here](docs/howto.md#update-blueprint).
 
 ## Breaking Changes and Guidance
 With this release, we're implementing several important changes.
@@ -49,7 +49,7 @@ Here's a detailed overview and guidance for a smooth transition:
    - **What to Do**: You'll need to flash your device with the new firmware using a serial connection.
    Detailed instructions are available in our [installation guide](docs/install.md#flashing-the-device-for-the-first-time).
    - **Support for Arduino Framework**: If you're not ready to make the switch or prefer the Arduino framework, it's still supported for OTA updates.
-   See our [framework customization documentation](https://github.com/Blackymas/NSPanel_HA_Blueprint/blob/main/docs/customization.md#frameworks) for details on how to select your preferred framework.
+   See our [framework customization documentation](docs/customization.md#frameworks) for details on how to select your preferred framework.
 
 3. **Several Services Changed**: In our pursuit to enhance integration capabilities and future-proof our services, we've undertaken a comprehensive restructuring of our API.
 This change is aimed at improving functionality and compatibility but may require adjustments to your current automations.
@@ -58,7 +58,7 @@ This change is aimed at improving functionality and compatibility but may requir
    Pay special attention to the examples section, which offers valuable insights and practical guidance for adapting your existing setups seamlessly.
 
 4. **15s Hardware Button Press No Longer Restarts the Device**: This feature was removed to repurpose the hardware button for more versatile uses.
-   - **What to Do**: If you relied on this feature, see our [customization guide](https://github.com/Blackymas/NSPanel_HA_Blueprint/blob/main/docs/customization.md#restart-with-15s-button-press) for alternatives.
+   - **What to Do**: If you relied on this feature, see our [customization guide](docs/customization.md#restart-with-15s-button-press) for alternatives.
    Additionally, the reset pin remains an option for manual resets.
 
 5. **Relay Fallback Switches Removed**: These switches were deprecated and have now been removed to streamline the firmware and reduce memory usage.
@@ -787,7 +787,7 @@ ensuring improved performance and user experience.
 
 > [!WARNING]
 > Home Assistant v2024.6.0 and ESPHome v2024.3.0 are required.
-> Please take a look at our [Version compatibility matrix](https://github.com/Blackymas/NSPanel_HA_Blueprint/blob/main/docs/version_compatibility.md) for a full list.
+> Please take a look at our [Version compatibility matrix](docs/version_compatibility.md) for a full list.
 
 ### Bluetooth Proxy Addon Crash Fixed (#2119)
 - **Criticality:** Major
@@ -887,7 +887,7 @@ The OTA format has changed, necessitating updates to ensure seamless firmware up
 
 > [!WARNING]
 > Home Assistant v2024.6.0 and ESPHome v2024.6.0 are required.
-> Please take a look at our [Version compatibility matrix](https://github.com/Blackymas/NSPanel_HA_Blueprint/blob/main/docs/version_compatibility.md) for a full list.
+> Please take a look at our [Version compatibility matrix](docs/version_compatibility.md) for a full list.
 
 ### OTA Format Compatibility Update
 - **Criticality:** Critical
@@ -898,10 +898,78 @@ The OTA format has changed, necessitating updates to ensure seamless firmware up
 Please ensure you are using Home Assistant v2024.6.0 or later, along with the latest ESPHome version,
 to benefit from these updates and maintain optimal performance.
 
+## v4.3.10 - Boot Stability Enhancements and Troubleshooting Support
+This patch introduces critical fixes and a new boot screen feature to improve system stability and assist in troubleshooting when BLE is in use.
+
+### BLE-Related Boot Issue Resolved
+- **Criticality:** Major
+- **Affected Components:** Blueprint, ESPHome, TFT
+- **Issue Numbers:** #2155, #2168, #2176 and #2218
+- **Description:** Fixed an issue that caused the NSPanel to fail during boot when BLE was enabled.
+This fix ensures that devices boot reliably even with BLE active, enhancing system stability.
+
+### New Boot Screen with Troubleshooting Log
+- **Criticality:** Enhancement
+- **Affected Components:** Blueprint, ESPHome, TFT
+- **Description:** Introduced a new boot screen that displays essential logs during the boot process.
+This feature aids in troubleshooting by providing real-time information on the panel's status during startup, making it easier to diagnose and resolve issues.
+
+This update is crucial for users leveraging BLE functionality, and the new boot screen is a valuable tool for ensuring smooth operation and efficient troubleshooting.
+
+## v4.3.11 - Hotfix for TFT File Download Issue
+This hotfix addresses a critical issue introduced in v4.3.10 where the incorrect TFT file was used during the download process.
+The fix has been applied to the release flow, but updating your firmware (ESPHome) is required, and it is recommended to also update the Blueprint and TFT components.
+
+> [!WARNING]
+> Home Assistant v2024.8.0 is required.
+> Please take a look at our [Version compatibility matrix](docs/version_compatibility.md) for a full list.
+
+### Incorrect TFT File Download Issue Resolved (#2223)
+- **Criticality:** Major
+- **Affected Components:** Release Flow, ESPHome, Blueprint, TFT
+- **Issue Number:** #2223
+- **Description:** Resolved an issue where the incorrect TFT file was being downloaded during the update process.
+This fix ensures that the correct TFT file is used, preventing potential display issues and ensuring that the panel functions as expected.
+
+This update is critical for maintaining the proper functionality of your NSPanel. Please ensure that you update all components as recommended.
+
+## v4.3.12 - Hotfix for Incorrect Timezone Calculation Issues
+This hotfix addresses critical issues with timezone handling on the NSPanel,
+specifically with POSIX string handling in ESP-IDF v4.4 and resolving an error in the propagation of timezone selection from the Blueprint to ESPHome.
+These fixes ensure accurate and consistent time display, fully synchronized with Home Assistant.
+
+### Fix for Incorrect Time Display Due to Timezone Handling (#2363, #2304)
+- **Criticality:** Critical
+- **Affected Components:** ESPHome, Blueprint
+- **Issue Numbers:** #2363, #2304
+- **Description:** Resolved issues where the NSPanel displayed incorrect time due to an inverted timezone offset,
+  affecting users with time discrepancies between the panel and Home Assistant.
+  The fix includes improvements in the propagation of timezone settings from the Blueprint, ensuring the home page accurately reflects the configured timezone.
+
+## v4.3.13 - Hotfix for crash with climate add-on with ESPHome v2025.5.0
+This hotfix addresses critical issues with an incorrect relay assignment causing a crash with ESPHome v2025.5.0.
+
+## v4.3.14 - Hotfix for crash with climate add-on with ESPHome v2025.5.0
+This hotfix addresses critical issues with a looger related stack overflow from ESPHome v2025.5.0 causing crash in some devices.
+
+**Attention**: ESPHome v2025.4.2 or later is now required.
+
+## v4.3.15 - Hotfix for a building error with ESPHome v2025.5.2
+This hotfix addresses a critical build error introduced by v4.13.14, which points to fix PR on ESPHome for `logger` component,
+however this PR was merged together with other changes, causing an error during the build.
+
+**Attention**: ESPHome v2025.5.2 or later is now required.
+
+## v4.3.16 - Removed screen turn-off from shutdown sequence
+Fixed "System DATA error!" messages that occurred after TFT uploads.
+The screen turn-off command in the shutdown sequence was being executed during the graceful restart window (introduced in ESPHome 2025.6.0),
+causing the display to interpret it as corrupt TFT data.
+Removing this shutdown command prevents the corruption issue.
+
 ## Support
 For support or more information about this update,
 visit our [GitHub repository](https://github.com/Blackymas/NSPanel_HA_Blueprint)
-or our [online documentation](https://github.com/Blackymas/NSPanel_HA_Blueprint/blob/main/docs/README.md).
+or our [online documentation](docs/README.md).
 
 ## What's Next?
 Discover our upcoming projects in our [Milestones](https://github.com/Blackymas/NSPanel_HA_Blueprint/milestones?direction=asc&sort=title&state=open).
@@ -913,8 +981,18 @@ Your efforts have significantly improved its functionality and reliability (#183
 - **@andythomas**: For the comprehensive enhancements made to our documentation.
 Your contributions have made our guides more informative and accessible, enriching the user experience for everyone (#1865).
 -  **@AJediIAm**: For the valuable contributions in reviewing and improving the installation documentation (#2106 & #2107).
+-  **@briangunderson**: For updating the docs to reflect to the new name for '**action**' (formelly '**service**') on Home Assistant v2024.8.0 (#2236)
+-  **@Bascht74**: For your thorough investigation and clear reporting in issue #2543, which helped us identify and address a critical edge case.
 
 ## Previous releases
+- [v4.3.15 - Hotfix for a building error with ESPHome v2025.5.2](https://github.com/Blackymas/NSPanel_HA_Blueprint/releases/tag/v4.3.15)
+- [v4.3.14 - Hotfix for crash with climate add-on with ESPHome v2025.5.0](https://github.com/Blackymas/NSPanel_HA_Blueprint/releases/tag/v4.3.14)
+- [v4.3.13 - Hotfix for crash with climate add-on with ESPHome v2025.5.0](https://github.com/Blackymas/NSPanel_HA_Blueprint/releases/tag/v4.3.13)
+- [v4.3.12 - Hotfix for Incorrect Timezone Calculation Issues](https://github.com/Blackymas/NSPanel_HA_Blueprint/releases/tag/v4.3.12)
+- [v4.3.11 - Hotfix for TFT File Download Issue](https://github.com/Blackymas/NSPanel_HA_Blueprint/releases/tag/v4.3.11)
+- [v4.3.10 - Boot Stability Enhancements and Troubleshooting Support](https://github.com/Blackymas/NSPanel_HA_Blueprint/releases/tag/v4.3.10)
+- [v4.3.9 - Ensuring Compatibility with ESPHome v2024.6.0](https://github.com/Blackymas/NSPanel_HA_Blueprint/releases/tag/v4.3.9)
+- [v4.3.8 - Enhancements and Bug Fix](https://github.com/Blackymas/NSPanel_HA_Blueprint/releases/tag/v4.3.8)
 - [v4.3.7 - Quick Fix for Captive Portal Compile Error](https://github.com/Blackymas/NSPanel_HA_Blueprint/releases/tag/v4.3.7)
 - [v4.3.6 - Critical Fixes for Custom Buttons](https://github.com/Blackymas/NSPanel_HA_Blueprint/releases/tag/v4.3.6)
 - [v4.3.5 - Experimenting with Bluetooth Capabilities](https://github.com/Blackymas/NSPanel_HA_Blueprint/releases/tag/v4.3.5)
