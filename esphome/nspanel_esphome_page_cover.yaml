@@ -1,0 +1,77 @@
+#####################################################################################################
+##### NSPANEL ESPHOME created by Blackymas - https://github.com/Blackymas/NSPanel_HA_Blueprint  #####
+##### ESPHOME Page cover                                                                        #####
+##### PLEASE only make changes if it is necessary and also the required knowledge is available. #####
+##### For normal use with the Blueprint, no changes are necessary.                              #####
+#####################################################################################################
+
+---
+substitutions:
+  BOOT_STEP_PAGE_COVER: 14
+  PAGE_COVER_ID: 11
+  TAG_PAGE_COVER: nspanel.page.cover
+
+esphome:
+  platformio_options:
+    build_flags:
+      - -D NSPANEL_HA_BLUEPRINT_PAGE_COVER
+
+script:
+  - id: !extend event_from_display
+    then:
+      - lambda: |-
+          if (page == "cover") {
+            if (json["key"].isNull()) {
+              ESP_LOGV("${TAG_PAGE_COVER}", "Missing cover key field");
+              return;
+            } // endif missing key
+
+            const std::string key = json["key"].as<std::string>();
+            ESP_LOGV("${TAG_PAGE_COVER}", "Cover control: key=%s", key.c_str());
+
+            if (key == "position") {
+              if (json["value"].isNull()) {
+                ESP_LOGV("${TAG_PAGE_COVER}", "Missing cover position value");
+                return;
+              } // endif missing value
+              const std::string value = json["value"].as<std::string>();
+              ESP_LOGV("${TAG_PAGE_COVER}", "Setting cover position: %s", value.c_str());
+              esphome::api::CustomAPIDevice ha_event;
+              ha_event.fire_homeassistant_event("${EVENT_NAME}", {
+                {"device_name", device_name->state.c_str()},
+                {"esphome_version", "${version}"},
+                {"type", "service_call"},
+                {"service", "cover.set_cover_position"},
+                {"key", key.c_str()},
+                {"value", value.c_str()},
+                {"entity", detailed_entity->state.c_str()}
+              });
+            } else {
+              ESP_LOGV("${TAG_PAGE_COVER}", "Executing cover action: %s", key.c_str());
+              esphome::api::CustomAPIDevice ha_event;
+              ha_event.fire_homeassistant_event("${EVENT_NAME}", {
+                {"device_name", device_name->state.c_str()},
+                {"esphome_version", "${version}"},
+                {"type", "service_call"},
+                {"service", ("cover." + key).c_str()},
+                {"entity", detailed_entity->state.c_str()}
+              });
+            } // endif key == "position"
+          } // endif page == "cover"
+
+  - id: !extend page_change
+    then:
+      - if:
+          condition:
+            - lambda: return new_page_id == ${PAGE_COVER_ID};
+          then:
+            - script.execute: page_cover
+
+  - id: page_cover
+    mode: single
+    then:  # There's nothing here so far
+
+  - id: !extend stop_page_constructors
+    then:
+      - script.stop: page_cover
+...

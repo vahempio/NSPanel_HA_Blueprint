@@ -1,0 +1,449 @@
+#####################################################################################################
+##### NSPANEL ESPHOME created by Blackymas - https://github.com/Blackymas/NSPanel_HA_Blueprint  #####
+##### ESPHOME CORE - API                                                                        #####
+##### PLEASE only make changes if it is necessary and also the required knowledge is available. #####
+##### For normal use with the Blueprint, no changes are necessary.                              #####
+#####################################################################################################
+---
+substitutions:
+  ##############################
+  ## Change only in your      ##
+  ## local yaml substitutions ##
+  ##############################
+  BOOT_STEP_API: 30
+  TAG_API: nspanel.api
+  EVENT_NAME: esphome.nspanel_ha_blueprint
+
+api:
+  id: api_server
+  homeassistant_services: true
+  reboot_timeout: 60min
+
+  on_client_connected:
+    then:
+      - lambda: |-
+          set_system_flag(NSPanelFlag::API_READY);
+          boot_log->execute("API", "Client connected");
+          refresh_wifi_icon->execute();
+          dump_config->execute();
+
+  on_client_disconnected:
+    then:
+      - if:
+          condition:
+            not:
+              api.connected:
+          then:
+            - lambda: clear_system_flag(NSPanelFlag::API_READY);
+      - script.execute: refresh_wifi_icon
+
+  actions:
+    # Sends custom commands directly to the display for dynamic interactions and updates.
+    - action: command
+      variables:
+        cmd: string  # Command string to be sent. Refer to the Nextion Instruction Set for supported commands: https://nextion.tech/instruction-set/
+      then:
+        - lambda: |-
+            ESP_LOGV("${TAG_API}", "Action: command");
+            ESP_LOGV("${TAG_API}", "  cmd: %s", cmd.c_str());
+            disp1->send_command(cmd.c_str());
+
+    # Changes the foreground color of a specified component on the display.
+    - action: component_color
+      variables:
+        page: string  # Send `mem` for a memory var
+        id: string    # Identifier of the component to change color. Ensure this matches the component's ID in your display layout.
+        color: int[]  # New color for the component, specified as an RGB array (e.g., [255, 0, 0] for red).
+      then:
+        - lambda: |-
+            action_component_color->execute(
+              page.c_str(),
+              id.c_str(),
+              rgbTo565(color)
+            );
+
+    # Updates the text of a specified component on the display.
+    - action: component_text
+      variables:
+        page: string  # Send `mem` for a memory var
+        id: string    # Identifier of the component. Ensure it matches the component's ID in your display layout.
+        txt: string   # New text content to be displayed. Supports both static and dynamic content.
+      then:
+        - lambda: |-
+            action_component_text->execute(
+              page.c_str(),
+              id.c_str(),
+              txt.c_str()
+            );
+
+    # Updates the value of a specified component on the display.
+    - action: component_val
+      variables:
+        page: string  # Send `mem` for a memory var
+        id: string    # Identifier of the component to update. Must match the component's ID in the display layout.
+        val: int      # New integer value to set for the component. Adjust based on the data type you're displaying.
+      then:
+        - lambda: |-
+            action_component_val->execute(
+              page.c_str(),
+              id.c_str(),
+              val
+            );
+
+    # Hides or shows a specified component on the display.
+    # Supports both simple component IDs and page-specific IDs (page.component format).
+    - action: components_visibility
+      variables:
+        page: string  # Send `mem` for a memory var
+        ids: string[]  # Identifier of the component to be hidden/shown. Can be 'component' or 'page.component' format.
+        visible: bool  # Set to true to show the component, or false to hide it.
+      then:
+        - lambda: |-
+            ESP_LOGV("${TAG_API}", "Action: components_visibility");
+            ESP_LOGV("${TAG_API}", "  page: %s", page.c_str());
+
+            for (const std::string& component_id : ids) {
+              if (component_id.empty()) {
+                ESP_LOGW("${TAG_API}", "Skipping empty component ID");
+                continue;
+              }
+
+              ESP_LOGV("${TAG_API}", "Processing component ID: %s", component_id.c_str());
+              // Apply visibility if global component or on correct page
+              ComponentVisibility* component_visibility = get_component_visibility(page.empty() ? current_page_id
+                                                                                                : get_page_id(page),
+                                                                                  component_id.c_str());
+
+              if (not component_visibility) {
+                ESP_LOGE("${TAG_API}", "Component '%s.%s' not found", page.c_str(), component_id.c_str());
+                return;
+              }
+
+              if (component_visibility->visible != visible) {
+                component_visibility->visible = visible;
+                if (page.empty() or current_page->state == page) {
+                  ESP_LOGV("${TAG_API}", "  Applying visibility changes");
+                  if (visible) {
+                    disp1->show_component(component_id.c_str());
+                  } else {
+                    disp1->hide_component(component_id.c_str());
+                  }
+                } else {
+                  ESP_LOGV("${TAG_API}",
+                            "  Current page (%s) doesn't match specified page (%s), skipping visibility update",
+                            current_page->state.c_str(), page.c_str());
+                }
+              } // #endif visibility check
+
+            } // #endfor component_id iteration
+
+            ESP_LOGV("${TAG_API}", "Processed %zu component IDs with visibility: %s",
+                    ids.size(), YESNO(visible));
+
+    # Displays detailed information for a specific entity.
+    - action: entity_details_show
+      variables:
+        entity: string     # The ID of the entity for which details are shown. Supports "embedded_climate" for built-in climate control.
+        back_page: string  # Specifies the page to return to. Accepts "home" or "buttonpage01" to "buttonpage04".
+      then:
+        - lambda: |-
+            ESP_LOGV("${TAG_API}", "Action: entity_details_show");
+            ESP_LOGV("${TAG_API}", "  entity: %s", entity.c_str());
+            ESP_LOGV("${TAG_API}", "  back_page: %s", back_page.c_str());
+            HomeAssistantEntity entity_id = extractHomeAssistantEntity(entity);
+            if (entity == "embedded_climate") entity_id.domain = "climate";
+            else if (entity_id.domain == "alarm_control_panel") entity_id.domain = "alarm";
+            if (entity_id.domain != "invalid" or entity == "embedded_climate") {
+              detailed_entity->publish_state(entity);
+              delay(${DELAY_DEFAULT});
+              goto_page->execute(get_page_id(entity_id.domain.c_str()));
+              delay(${DELAY_DEFAULT});
+              disp1->send_command_printf("back_page_id=%" PRIu8, get_page_id(back_page.c_str()));
+              if (entity_id.domain == "climate")
+                delay(${DELAY_DEFAULT});
+                disp1->set_component_value("climate.embedded", (entity == "embedded_climate") ? 1 : 0);
+            }
+
+    - action: icon  # Updates icon, color, and visibility for display components
+      variables:
+        page: string       # Page name for visibility control. If empty, visibility is applied immediately.
+        id: string         # Identifier of the component.
+        icon: string       # Icon codepoint, e.g., "/uE6E8" for `mdi:lightbulb-on-outline`.
+        icon_color: int[]  # RGB color array for the icon, e.g., [0, 255, 0] for green.
+        visible: bool      # Set to `true` for visible or `false` for hidden.
+      then:
+        - lambda: |-
+            ESP_LOGV("${TAG_API}", "Action: icon");
+
+            if (id.empty()) {
+              ESP_LOGW("${TAG_API}", "Empty component ID provided");
+              return;
+            }
+
+            ESP_LOGV("${TAG_API}", "Processing component ID: %s", id.c_str());
+            ESP_LOGV("${TAG_API}", "  page: %s", page.empty() ? "none (global)" : page.c_str());
+            ESP_LOGV("${TAG_API}", "  icon: %s", icon.c_str());
+            ESP_LOGV("${TAG_API}", "  icon_color: %" PRIu16, rgbTo565(icon_color));
+            ESP_LOGV("${TAG_API}", "  visible: %s", YESNO(visible));
+
+            // Always set icon and color using the full ID as-is
+            disp1->set_component_text(id.c_str(), icon.c_str());
+
+            // Set icon color if provided
+            if (icon_color.size() == 3) {
+              disp1->set_component_font_color(id.c_str(), rgbTo565(icon_color));
+            }
+
+            // Handle visibility - apply if global component or on correct page
+            ComponentVisibility* component_visibility = get_component_visibility(page.empty() ? current_page_id
+                                                                                              : get_page_id(page),
+                                                                                id.c_str());
+
+            if (not component_visibility) {
+              ESP_LOGE("${TAG_API}", "Component '%s.%s' not found", page.c_str(), id.c_str());
+              return;
+            }
+
+            if (component_visibility->visible != visible) {
+              component_visibility->visible = visible;
+              if (page.empty() or current_page->state == page) {
+                ESP_LOGV("${TAG_API}", "  Applying visibility changes");
+                if (visible) {
+                  disp1->show_component(id.c_str());
+                } else {
+                  disp1->hide_component(id.c_str());
+                }
+              } else {
+                ESP_LOGV("${TAG_API}",
+                          "  Current page (%s) doesn't match specified page (%s), skipping visibility update",
+                          current_page->state.c_str(), page.c_str());
+              }
+            } // #endif visibility check
+
+    # Dynamically displays QR codes on the ESPHome UI for sharing information such as WiFi passwords or website links.
+    - action: qrcode
+      variables:
+        title: string   # Heading or title for the QR code, offering context or instructions.
+        qrcode: string  # Data or URL to be encoded into the QR code.
+        show: bool      # Flag to immediately display the QR code page upon service invocation.
+      then:
+        - if:
+            condition:
+              - lambda: return (current_page_id == ${PAGE_HOME_ID});
+            then:
+              - lambda: |-
+                  disp1->send_command_printf("vis bt_qrcode,%i", qrcode.empty() ? 0 : 1);
+        - lambda: |-
+            disp1->set_component_text("qrcode.qrcode_label", title.c_str());
+            disp1->set_component_text("qrcode.qrcode_value", qrcode.c_str());
+        - if:
+            condition:
+              - lambda: return show;
+            then:
+              - script.execute:
+                  id: goto_page
+                  page_id: ${PAGE_QRCODE_ID}
+
+        # Update blueprint status
+        - lambda: set_blueprint_status_flag(BlueprintStatusFlag::QRCODE);
+
+    # Utilities group refresh
+    - action: utilities_group_refresh
+      variables:
+        group_id: string
+        value1: string
+        value2: string
+        direction: int
+        constructor: bool
+      then:
+        - if:
+            condition:
+              - lambda: return group_id.empty();
+            then:
+              - lambda: ESP_LOGW("${TAG_API}", "`group_id` is empty");
+            else:
+              - lambda: |-
+                  uint8_t id = findUtilitiesGroupIndex(group_id.c_str());
+                  if (id != UINT8_MAX) {
+                    // Update Value 1
+                    if (!value1.empty() and
+                        (constructor or strcmp(value1.c_str(), UtilitiesGroups[id].value1) != 0)) {
+                      copyStringToCharArray(UtilitiesGroups[id].value1, value1);
+                      disp1->set_component_text(group_id.c_str(), value1.c_str());
+                      delay(${DELAY_DEFAULT});
+                    }
+
+                    // Update Value 2
+                    if (!value2.empty() and
+                        (constructor or strcmp(value2.c_str(), UtilitiesGroups[id].value2) != 0)) {
+                      copyStringToCharArray(UtilitiesGroups[id].value2, value2);
+                      disp1->set_component_text((group_id + "b").c_str(), value2.c_str());
+                      delay(${DELAY_DEFAULT});
+                    }
+
+                    // Update direction
+                    if (group_id != "grid" and !isnan(direction) and
+                        (constructor or direction != UtilitiesGroups[id].direction)) {
+                      UtilitiesGroups[id].direction = direction;
+                      disp1->set_component_value((group_id + "_line_d").c_str(), direction);
+                      delay(${DELAY_DEFAULT});
+                    }
+                  }
+
+    # Wake Up Service
+    - action: wake_up
+      variables:
+        reset_timer: bool  # Determines whether to reset the sleep and dimming timers upon waking the display.
+      then:
+        - script.execute:
+            id: wakeup
+            reset_timer: !lambda return reset_timer;
+
+esphome:
+  platformio_options:
+    build_flags:
+      - -D NSPANEL_HA_BLUEPRINT_API
+
+script:
+  - id: action_component_color
+    mode: single
+    parameters:
+      page: string       # Send `mem` for a memory var
+      component: string  # Identifier of the component to change color. Ensure this matches the component's ID in your display layout.
+      color: uint16_t    # New color for the component, rgb565.
+    then:
+      - lambda: |-
+          ESP_LOGV("${TAG_API}", "Script: action_component_color");
+          ESP_LOGV("${TAG_API}", "  page: %s", page.c_str());
+          ESP_LOGV("${TAG_API}", "  component: %s", component.c_str());
+          ESP_LOGV("${TAG_API}", "  color: %" PRIu16, color);
+          if (page.empty()) {
+            disp1->set_component_font_color(component.c_str(), color);
+            return;
+          }
+          if (page != "mem") {
+            disp1->send_command_printf("%s.%s.pco=%" PRIu16, page.c_str(), component.c_str(), color);
+            return;
+          }
+
+  - id: action_component_text
+    mode: single
+    parameters:
+      page: string       # Send `mem` for a memory var
+      component: string  # Identifier of the component. Ensure it matches the component's ID in your display layout.
+      txt: string        # New text content to be displayed. Supports both static and dynamic content.
+    then:
+      - lambda: |-
+          ESP_LOGV("${TAG_API}", "Script: action_component_text");
+          ESP_LOGV("${TAG_API}", "  page: %s", page.c_str());
+          ESP_LOGV("${TAG_API}", "  component: %s", component.c_str());
+          ESP_LOGV("${TAG_API}", "  txt: %s", txt.c_str());
+          if (page.empty()) {
+            disp1->set_component_text(component.c_str(), txt.c_str());
+            return;
+          }
+          if (page != "mem") {
+            disp1->send_command_printf("%s.%s.txt=\"%s\"", page.c_str(), component.c_str(), txt.c_str());
+            return;
+          }
+
+  - id: action_component_val
+    mode: single
+    parameters:
+      page: string       # Send `mem` for a memory var
+      component: string  # Identifier of the component to update. Must match the component's ID in the display layout.
+      val: int32_t       # New integer value to set for the component. Adjust based on the data type you're displaying.
+    then:
+      # Extended by:
+      # - hw_buttons
+      # - page_home
+      - lambda: |-
+          ESP_LOGV("${TAG_API}", "Script: action_component_val");
+          ESP_LOGV("${TAG_API}", "  page: %s", page.c_str());
+          ESP_LOGV("${TAG_API}", "  component: %s", component.c_str());
+          ESP_LOGV("${TAG_API}", "  val: %i", val);
+          if (page.empty()) {
+            disp1->set_component_value(component.c_str(), val);
+            return;
+          }
+          if (page != "mem") {
+            disp1->send_command_printf("%s.%s.val=%" PRId32, page.c_str(), component.c_str(), val);
+            return;
+          }
+
+  - id: api_recover_from_failed
+    mode: single
+    then:
+      - while:
+          condition:
+            - lambda: return api_server->is_failed();
+          then:
+            - lambda: |-
+                ESP_LOGW("${TAG_API}", "API reported a failed state. Recovering...");
+                api_server->setup();
+            - delay: 5s
+
+  - id: !extend dump_config
+    then:
+      # Report API status
+      - if:
+          condition:
+            - api.connected:
+          then:
+            - lambda: |-
+                ESP_LOGCONFIG("${TAG_API}", "API: Connected");
+          else:
+            - lambda: |-
+                ESP_LOGW("${TAG_API}", "API: DISCONNECTED");
+
+  - id: ha_button
+    mode: parallel
+    parameters:
+      page: string
+      component: string
+      command: string
+    then:
+      - script.execute: timer_reset_all
+      - homeassistant.event:
+          event: ${EVENT_NAME}
+          data:
+            device_name: !lambda return device_name->state.c_str();
+            esphome_version: ${version}
+            type: button_click
+            page: !lambda return page;
+            component: !lambda return component;
+            command: !lambda return command;
+
+  - id: !extend stop_all
+    then:
+      - script.stop: api_recover_from_failed
+      - script.stop: ha_button
+
+  - id: !extend watchdog_round
+    then:
+      - if:
+          condition:
+            - lambda: return (current_page_id != ${PAGE_BOOT_ID});
+            - lambda: return (current_page_id != ${PAGE_CONFIRM_ID});
+            - lambda: return (current_page_id != ${PAGE_HOME_ID});
+            - lambda: return (current_page_id != ${PAGE_QRCODE_ID});
+            - lambda: return (current_page_id != ${PAGE_SCREENSAVER_ID});
+            - lambda: return (current_page_id != ${PAGE_SETTINGS_ID});
+            - not:
+                - api.connected:
+            - not:
+                - text_sensor.state:
+                    id: current_page
+                    state: blank
+          then:
+            - lambda: |-
+                  ESP_LOGW("${TAG_DATETIME}", "API disconnected. Falling back to Home page.");
+            - script.execute:
+                id: goto_page
+                page_id: ${PAGE_HOME_ID}
+
+wifi:
+  on_connect:
+    then:
+      - script.execute: api_recover_from_failed
+...

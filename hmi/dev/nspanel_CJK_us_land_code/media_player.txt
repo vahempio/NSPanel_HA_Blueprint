@@ -24,12 +24,7 @@ Page media_player
             {
                 page home_page_id
             }
-            printh 92
-            prints "current_page",0
-            printh 00
-            prints "media_player",0
-            printh 00
-            printh FF FF FF
+            sendme
         
 Variable (string) lastclick
     Attributes
@@ -152,9 +147,9 @@ Text bt_vol_down
         Send Component ID       : on press and release
         Opacity                 : 127
         x coordinate            : 84
-        y coordinate            : 256
+        y coordinate            : 266
         Width                   : 55
-        Height                  : 55
+        Height                  : 35
         Effect                  : load
         Effect Priority         : 0
         Effect Time             : 300
@@ -195,9 +190,9 @@ Text bt_vol_up
         Send Component ID       : on press
         Opacity                 : 127
         x coordinate            : 401
-        y coordinate            : 256
+        y coordinate            : 266
         Width                   : 55
-        Height                  : 55
+        Height                  : 35
         Effect                  : load
         Effect Priority         : 0
         Effect Time             : 300
@@ -238,9 +233,9 @@ Text bt_mute
         Send Component ID       : on press and release
         Opacity                 : 127
         x coordinate            : 10
-        y coordinate            : 256
+        y coordinate            : 266
         Width                   : 55
-        Height                  : 55
+        Height                  : 35
         Effect                  : load
         Effect Priority         : 0
         Effect Time             : 300

@@ -24,12 +24,7 @@ Page cover
             {
                 page home_page_id
             }
-            printh 92
-            prints "current_page",0
-            printh 00
-            prints "cover",0
-            printh 00
-            printh FF FF FF
+            sendme
         
 Variable (string) va1
     Attributes
@@ -228,9 +223,9 @@ Button cover_open
         Send Component ID                   : on press and release
         Opacity                             : 127
         x coordinate                        : 295
-        y coordinate                        : 174
+        y coordinate                        : 169
         Width                               : 65
-        Height                              : 65
+        Height                              : 55
         Effect                              : load
         Effect Priority                     : 0
         Effect Time                         : 300
@@ -265,9 +260,9 @@ Button cover_close
         Send Component ID                   : on press and release
         Opacity                             : 127
         x coordinate                        : 295
-        y coordinate                        : 250
+        y coordinate                        : 245
         Width                               : 65
-        Height                              : 65
+        Height                              : 55
         Effect                              : load
         Effect Priority                     : 0
         Effect Time                         : 300
@@ -302,9 +297,9 @@ Button cover_stop
         Send Component ID                   : on press and release
         Opacity                             : 127
         x coordinate                        : 98
-        y coordinate                        : 250
+        y coordinate                        : 245
         Width                               : 65
-        Height                              : 65
+        Height                              : 55
         Effect                              : load
         Effect Priority                     : 0
         Effect Time                         : 300

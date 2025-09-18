@@ -20,7 +20,7 @@ namespace nspanel_ha_blueprint {
     * These names correspond to various pages of the Nextion TFT file in use,
     * such as settings, home, weather information, and more.
     */
-    constexpr std::array<const char*, 28> page_names = {
+    constexpr std::array<const char*, 30> page_names = {
         "boot",
         "home",
         "weather01",
@@ -48,8 +48,15 @@ namespace nspanel_ha_blueprint {
         "keyb_num",
         "media_player",
         "confirm",
-        "utilities"
+        "utilities",
+        "home_smpl",
+        "debug"
     };
+
+    // Global system flags - initialized to 0 (all flags false)
+    extern uint8_t current_page_id;
+    extern uint8_t last_page_id;
+    extern uint8_t wakeup_page_id;
 
     /**
     * Retrieves the index of a given page name within the page_names array.
@@ -59,14 +66,5 @@ namespace nspanel_ha_blueprint {
     *         is not found, returns UINT8_MAX as an indicator that no matching page was found.
     */
     uint8_t get_page_id(const std::string& page_name);
-
-    /**
-    * Checks if a given string is present within a list of strings.
-    * 
-    * @param strToSearch The string to search for within the list.
-    * @param list An initializer list of strings to search within.
-    * @return `true` if the target string is found within the list, `false` otherwise.
-    */
-    bool isStringInList(const std::string& strToSearch, std::initializer_list<std::string> list);
 
 }  // namespace nspanel_ha_blueprint

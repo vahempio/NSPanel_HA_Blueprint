@@ -24,13 +24,12 @@ Table of contents:
     - [Scheduled relay](#scheduled-relay)
     - [Scheduled climate](#scheduled-climate)
   - [Frameworks](#frameworks)
-    - [Framework `arduino`](#framework-arduino)
-    - [Framework `esp-idf`](#framework-esp-idf)
-  - [Bluetooth proxy](#bluetooth-proxy)
-  - [BLE tracker](#ble-tracker)
+    - [Framework `esp-idf` (RECOMMENDED)](#framework-esp-idf-recommended)
+    - [Framework `arduino` (DEPRECATED)](#framework-arduino-deprecated)
   - [Logger via UART](#logger-via-uart)
   - [Climate custom presets](#climate-custom-presets)
   - [Push button / Momentary switch](#push-button--momentary-switch)
+  - [Hardware button scripts (v4.3.30+)](#hardware-button-scripts-v4330)
   - [Expose relay fallback switch](#expose-relay-fallback-switch)
   - [Relay Interlocking](#relay-interlocking)
   - [Remove non-essential components](#remove-non-essential-components)
@@ -94,9 +93,6 @@ packages:
     files:
       - nspanel_esphome.yaml # Basic package
       # Optional advanced and add-on configurations
-      # - esphome/nspanel_esphome_advanced.yaml
-      # - esphome/nspanel_esphome_addon_ble_tracker.yaml
-      # - esphome/nspanel_esphome_addon_bluetooth_proxy.yaml
       # - esphome/nspanel_esphome_addon_climate_cool.yaml
       # - esphome/nspanel_esphome_addon_climate_heat.yaml
       # - esphome/nspanel_esphome_addon_climate_dual.yaml
@@ -204,7 +200,7 @@ ota:
 ```
 
 ### Web server credentials
-By default, the web server credentials are defined by this project using `admin` as `username` and your `Wi-Fi password` as `password`, but you can replace it using this customization:
+By default, the web server credentials are defined by this project (advanced only) using `admin` as `username` and your `Wi-Fi password` as `password`, but you can replace it using this customization:
 
 ```yaml
 # Custom web server credentials
@@ -297,7 +293,7 @@ binary_sensor:
     id: display_state
     platform: template
     lambda: |-
-      return (current_page->state != "screensaver");
+      return (current_page_id != ${PAGE_SCREENSAVER_ID});
 ```
 
 You can easily invert the meaning to have a sensor for display sleeping:
@@ -309,7 +305,7 @@ binary_sensor:
     id: display_sleeping
     platform: template
     lambda: |-
-      return (current_page->state == "screensaver");
+      return (current_page_id == ${PAGE_SCREENSAVER_ID});
 ```
 
 ### Deep sleep
@@ -383,7 +379,7 @@ button:
       then:
         - logger.log: Button Sleep pressed
         - lambda: |-
-            goto_page->execute("screensaver");
+            goto_page->execute(${PAGE_SCREENSAVER_ID});
   
   # Adds a button to wake-up the panel (similar to the existing action)
   - name: Wake-up
@@ -394,7 +390,7 @@ button:
       then:
         - logger.log: Button Wake-up pressed
         - lambda: |-
-            if (current_page->state == "screensaver") id(disp1).goto_page(id(wakeup_page_name).state.c_str());
+            if (current_page_id == ${PAGE_SCREENSAVER_ID}) disp1->goto_page(wakeup_page_id);
             // timer_page->execute(); // enable this if you want page timeout to be reset
             timer_sleep->execute();
             timer_dim->execute();
@@ -417,13 +413,13 @@ light:
       then:
         - lambda: |-
             ESP_LOGD("light.display_light", "Turn-on");
-            if (current_page->state == "screensaver") disp1->goto_page(wakeup_page_name->state.c_str());
+            if (current_page_id == ${PAGE_SCREENSAVER_ID}) disp1->goto_page(wakeup_page_id);
             timer_reset_all->execute();
     on_turn_off:
       then:
         - lambda: |-
             ESP_LOGD("light.display_light", "Turn-off");
-            goto_page->execute("screensaver");
+            goto_page->execute(${PAGE_SCREENSAVER_ID});
 
 output:
   # Output required by `display_light` to send the commands to Nextion
@@ -438,16 +434,16 @@ output:
           set_brightness->execute(current_brightness);
     
 script:
-  # Updates the existing `page_changed` script to update the `display_light` status when a page changes
-  - id: !extend page_changed
+  # Updates the existing `page_change` script to update the `display_light` status when a page changes
+  - id: !extend page_change
     then:
       - lambda: |-
-          ESP_LOGD("script.page_changed(custom)", "page: %s", current_page->state.c_str());
-          ESP_LOGV("script.page_changed(custom)", "is_on(): %s", display_light->current_values.is_on() ? "True" : "False");
-          if (current_page->state == "screensaver" and display_light->current_values.is_on()) {
+          ESP_LOGD("script.page_change(custom)", "page: %s", current_page->state.c_str());
+          ESP_LOGV("script.page_change(custom)", "is_on(): %s", display_light->current_values.is_on() ? "True" : "False");
+          if (current_page_id == ${PAGE_SCREENSAVER_ID} and display_light->current_values.is_on()) {
             auto call = display_light->turn_off();
             call.perform();
-          } else if (current_page->state != "screensaver" and (not display_light->current_values.is_on())) {
+          } else if (current_page_id != ${PAGE_SCREENSAVER_ID} and (not display_light->current_values.is_on())) {
             auto call = display_light->turn_on();
             call.perform();
           }
@@ -460,7 +456,7 @@ script:
           uint8_t current_light_brightness = int(round(display_light->current_values.is_on() ? (display_light->current_values.get_brightness() * 100.0f) : 0.0));
           ESP_LOGV("script.set_brightness(custom)", "current_light_brightness: %i%%", current_light_brightness);
           if (brightness != current_light_brightness) {
-            if (current_page->state != "screensaver" and brightness > 0) {
+            if (current_page_id != ${PAGE_SCREENSAVER_ID} and brightness > 0) {
               auto call = display_light->turn_on();
               call.set_brightness(static_cast<float>(current_brightness->state) / 100.0f);
               call.perform();
@@ -544,9 +540,19 @@ time:
 ```
 
 ### Frameworks
+<!-- markdownlint-disable MD028 -->
+> [!WARNING]
+> **Arduino framework support has been deprecated as of v4.3.22**. While existing configurations may continue to work,
+> Arduino framework is no longer officially supported or tested. New users should use ESP-IDF framework only.
+
 > [!IMPORTANT]
 > When switching between frameworks, make sure to update the device with a serial cable as the partition table is different between the two frameworks
-as [OTA Update Component](https://esphome.io/components/ota) updates will not change the partition table. While it will appear to work, the device will boot the old framework after a reset.
+> as [OTA Update Component](https://esphome.io/components/ota) updates will not change the partition table.
+> While it will appear to work, the device will boot the old framework after a reset.
+<!-- markdownlint-enable MD028 -->
+
+If you have absolute need to change framework via OTA, please ensure you flash your device twice in a row
+to increase the chances to have both partitions with the new firmware.
 
 This project currently uses `esp-idf` as default framework.
 You can overlap the settings with this customization.
@@ -555,44 +561,38 @@ You can overlap the settings with this customization.
 > For more info about frameworks, please visit [ESPHome docs](https://esphome.io/components/esp32).
 
 `esp-idf` is maintained by EspressIF and is kept updated,
-more boards are supported and the memory management is better, making it ideal if you wanna customize your panel to support memory consumption functionalities,
-like `bluetooth_proxy` or [Improv](https://www.improv-wifi.com/). Consequently, this project uses `esp-idf` as the default framework since `v4.3`. 
+more boards are supported and the memory management is better,
+making it ideal if you wanna customize your panel to support memory consumption functionalities,
+like `bluetooth_proxy` or [Improv](https://www.improv-wifi.com/).
+Consequently, this project uses `esp-idf` as the default framework since `v4.3.0`. 
 
-However, the `arduino` protocol still very popular and, therefore, more components are available and the project allows to switch between the frameworks 
-by adding the following lines in your panel's yaml file.
+~~However, the `arduino` protocol still very popular and, therefore, more components are available and the project allows to switch between the frameworks 
+by adding the following lines in your panel's yaml file.~~
 
-#### Framework `arduino`
+#### Framework `esp-idf` (RECOMMENDED)
+
 ```yaml
-# Change framework to `arduino`
-esp32:
-  framework:
-    type: arduino
-```
-#### Framework `esp-idf`
-```yaml
-# Change framework to `esp-idf`
-# (should not be required)
+# Change framework to esp-idf - should not be required as this is the default
 esp32:
   framework:
     type: esp-idf
 ```
 
-### Bluetooth Proxy
-Please refer to the "[Add-on: Bluetooth Proxy](addon_bluetooth_proxy.md)" guide.
+#### Framework `arduino` (DEPRECATED)
 
-### BLE Tracker
-Please refer to the "[Add-on: BLE Tracker Proxy](addon_ble_tracker.md)" guide.
+> [!WARNING]
+> **DEPRECATED:** Arduino framework support is no longer maintained or tested. Migration to ESP-IDF is strongly recommended.
+
+```yaml
+# Change framework to arduino - NOT RECOMMENDED
+esp32:
+  framework:
+    type: arduino
+```
 
 ### Logger via UART
 
-By default, the logging via hardware UART is disable in this project.
-You can enable it by setting the baud rate accordingly to your interface:
-
-```yaml
-# Enable hardware UART serial logging
-logger:
-  baud_rate: 115200
-```
+By default, the logging via hardware UART is enabled in this project since v4.3.22.
 
 ### Climate custom presets
 
@@ -641,6 +641,100 @@ binary_sensor:
     on_release:
         switch.turn_off: relay_2
 ```
+
+### Hardware button scripts (v4.3.30+)
+
+Starting from version 4.3.30, the project provides dedicated scripts for hardware button events that can be extended with custom actions.
+This approach is more efficient than using the generic `ha_button` service and reduces unnecessary load on your ESP32.
+
+The available scripts are:
+- `button_left_press_long` - Triggered when the left button is pressed and held
+- `button_left_press_short` - Triggered when the left button is pressed briefly
+- `button_left_release` - Triggered when the left button is released
+- `button_right_press_long` - Triggered when the right button is pressed and held
+- `button_right_press_short` - Triggered when the right button is pressed briefly
+- `button_right_release` - Triggered when the right button is released
+
+These scripts are particularly useful when you need custom behavior during network disconnections or want to implement local fallback functionality.
+
+#### Example: HTTP requests when Home Assistant is disconnected
+
+This example shows how to control external devices via HTTP requests when your NSPanel loses connection to Home Assistant, 
+such as controlling a Shelly device directly:
+
+```yaml
+# Ensure the http_request component is available
+http_request:
+
+script:
+  # Left button long press - Open roller shutter
+  - id: !extend button_left_press_long
+    then:
+      - if:
+          condition:
+            - not:
+                api.connected:  # Only execute when Home Assistant is disconnected
+          then:
+            - http_request.get:
+                url: http://192.168.1.100/roller/0?go=open
+
+  # Left button release - Stop roller shutter
+  - id: !extend button_left_release
+    then:
+      - if:
+          condition:
+            - not:
+                api.connected:  # Only execute when Home Assistant is disconnected
+          then:
+            - http_request.get:
+                url: http://192.168.1.100/roller/0?go=stop
+
+  # Right button long press - Close roller shutter
+  - id: !extend button_right_press_long
+    then:
+      - if:
+          condition:
+            - not:
+                api.connected:  # Only execute when Home Assistant is disconnected
+          then:
+            - http_request.get:
+                url: http://192.168.1.100/roller/0?go=close
+
+  # Right button release - Stop roller shutter
+  - id: !extend button_right_release
+    then:
+      - if:
+          condition:
+            - not:
+                api.connected:  # Only execute when Home Assistant is disconnected
+          then:
+            - http_request.get:
+                url: http://192.168.1.100/roller/0?go=stop
+```
+
+#### Example: Custom logging and actions
+
+```yaml
+script:
+  # Custom short press action for left button
+  - id: !extend button_left_press_short
+    then:
+      - logger.log: "Left button short press detected"
+      - lambda: |-
+          ESP_LOGI("button", "Custom left button short press action");
+          // Add your custom C++ code here
+
+  # Custom long press action for right button with delay
+  - id: !extend button_right_press_long
+    then:
+      - logger.log: "Right button long press detected"
+      - delay: 1s
+      - switch.toggle: relay_2  # Toggle relay after 1 second delay
+```
+
+> [!TIP]
+> Using these dedicated scripts instead of the `ha_button` service reduces CPU load and provides more precise control over button behavior.
+> The `api.connected` condition ensures that custom actions only execute when Home Assistant is unavailable, allowing normal operation to resume once connectivity is restored.
 
 ### Expose Relay Fallback Switch
 You can configure a local fallback relay to integrate with Home Assistant.
@@ -715,10 +809,10 @@ switch:
 This can be useful to free-up memory, so other custom components could be used instead.
 
 ```yaml
-# Removes captive portal
+# Removes captive portal - Pre-built and advanced only
 captive_portal: !remove
 
-# Removes embedded web server
+# Removes embedded web server - Advanced only
 web_server: !remove
 ```
 

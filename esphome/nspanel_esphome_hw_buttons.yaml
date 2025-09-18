@@ -1,0 +1,273 @@
+#####################################################################################################
+##### NSPANEL ESPHOME created by Blackymas - https://github.com/Blackymas/NSPanel_HA_Blueprint  #####
+##### ESPHOME CORE - HARDWARE - BUTTONS                                                         #####
+##### PLEASE only make changes if it is necessary and also the required knowledge is available. #####
+##### For normal use with the Blueprint, no changes are necessary.                              #####
+#####################################################################################################
+
+---
+substitutions:
+  ##############################
+  ## Change only in your      ##
+  ## local yaml substitutions ##
+  ##############################
+  invalid_cooldown: 100ms
+  buttons_color_on: ${COLOR_CYAN_BRIGHT}
+  buttons_color_off: ${COLOR_BLUE_INDIGO}
+  BOOT_STEP_HW_BUTTONS: '3'
+  GPIO_BUTTON_LEFT_PIN:
+    number: 14
+    inverted: true
+  GPIO_BUTTON_RIGHT_PIN:
+    number: 27
+    inverted: true
+  TAG_HW_BUTTONS: nspanel.hw.buttons
+
+binary_sensor:
+  - name: Left Button  # LEFT BUTTON BELOW DISPLAY TO TOGGLE RELAY
+    platform: gpio
+    id: left_button
+    pin: ${GPIO_BUTTON_LEFT_PIN}
+    on_multi_click:
+      - timing: &long_click-timing
+          - ON for at least 0.8s
+        invalid_cooldown: ${invalid_cooldown}
+        then:
+          - logger.log: "Left button - Long click"
+          - script.execute: button_left_press_long
+          - script.execute:
+              id: ha_button
+              page: !lambda return page_names[current_page_id];
+              component: "hw_bt_left"
+              command: "long_click"
+      - timing: &short_click-timing
+          - ON for at most 0.8s
+        invalid_cooldown: ${invalid_cooldown}
+        then:
+          - logger.log: "Left button - Short click"
+          - script.execute: button_left_press_short
+          - if:
+              condition:
+                or:
+                  - lambda: return (id(relay_settings) & RelaySettings::Relay1_Local);
+                  - and:
+                      - lambda: return (id(relay_settings) & RelaySettings::Relay1_Fallback);
+                      - or:
+                          - not:
+                              - api.connected:
+                          - not:
+                              - wifi.connected:
+              then:
+                - switch.toggle: relay_1
+          - script.execute:
+              id: ha_button
+              page: !lambda return page_names[current_page_id];
+              component: "hw_bt_left"
+              command: "short_click"
+    on_release:
+      then:
+        - script.execute: button_left_release
+
+  - name: Right Button  # RIGHT BUTTON BELOW DISPLAY TO TOGGLE RELAY
+    platform: gpio
+    id: right_button
+    pin: ${GPIO_BUTTON_RIGHT_PIN}
+    on_multi_click:
+      - timing: *long_click-timing
+        invalid_cooldown: ${invalid_cooldown}
+        then:
+          - logger.log: "Right button - Long click"
+          - script.execute: button_right_press_long
+          - script.execute:
+              id: ha_button
+              page: !lambda return page_names[current_page_id];
+              component: "hw_bt_right"
+              command: "long_click"
+      - timing: *short_click-timing
+        invalid_cooldown: ${invalid_cooldown}
+        then:
+          - logger.log: "Right button - Short click"
+          - script.execute: button_right_press_short
+          - if:
+              condition:
+                or:
+                  - lambda: return (id(relay_settings) & RelaySettings::Relay2_Local);
+                  - and:
+                      - lambda: return (id(relay_settings) & RelaySettings::Relay2_Fallback);
+                      - or:
+                          - not:
+                              - api.connected:
+                          - not:
+                              - wifi.connected:
+              then:
+                - switch.toggle: relay_2
+          - script.execute:
+              id: ha_button
+              page: !lambda return page_names[current_page_id];
+              component: "hw_bt_right"
+              command: "short_click"
+    on_release:
+      then:
+        - script.execute: button_right_release
+
+esphome:
+  platformio_options:
+    build_flags:
+      - -D NSPANEL_HA_BLUEPRINT_HW_BUTTONS
+
+globals:
+  - id: buttons_color_on
+    type: uint16_t
+    restore_value: true
+    initial_value: '${buttons_color_on}'
+
+  - id: buttons_color_off
+    type: uint16_t
+    restore_value: true
+    initial_value: '${buttons_color_off}'
+
+  - id: buttons_bars_pages
+    type: uint32_t
+    restore_value: true
+    initial_value: '1'
+
+script:
+  - id: !extend action_component_color
+    then:
+      - lambda: |-
+          if (page == "mem") {
+            if (component == "button_bar_color_on") {
+              id(buttons_color_on) = color;
+            } else if (component == "button_bar_color_off") {
+              id(buttons_color_off) = color;
+            }
+          }
+
+  - id: !extend action_component_val
+    then:
+      - lambda: |-
+          if (page == "mem") {
+            if (component == "hw_bt_left") {
+              update_bitwise_setting(buttons_settings, val != 0, ButtonSettings::ButtonLeft_State);
+              refresh_hardware_buttons_bars->execute(1);
+            } else if (component == "hw_bt_right") {
+              update_bitwise_setting(buttons_settings, val != 0, ButtonSettings::ButtonRight_State);
+              refresh_hardware_buttons_bars->execute(2);
+            } else if (component == "buttons_bars_pages") {
+              id(buttons_bars_pages) = val;
+              set_blueprint_status_flag(BlueprintStatusFlag::HW_BUTTONS_SETTINGS);
+            } else if (component == "button_left") {
+              update_bitwise_setting(buttons_settings, (val > 0), ButtonSettings::ButtonLeft_Enabled);
+            } else if (component == "button_right") {
+              update_bitwise_setting(buttons_settings, (val > 0), ButtonSettings::ButtonRight_Enabled);
+            }
+          }
+
+  - id: button_left_press_long
+    mode: restart
+    then:
+
+  - id: button_left_press_short
+    mode: restart
+    then:
+
+  - id: button_left_release
+    mode: restart
+    then:
+
+  - id: button_right_press_long
+    mode: restart
+    then:
+
+  - id: button_right_press_short
+    mode: restart
+    then:
+
+  - id: button_right_release
+    mode: restart
+    then:
+
+  - id: refresh_hardware_buttons_bars
+    mode: restart
+    parameters:
+      button_mask: uint8_t
+    then:
+      - if:
+          condition:
+            - lambda: return is_device_ready_for_tasks();
+          then:
+            - lambda: |-
+                ESP_LOGV("${TAG_HW_BUTTONS}", "Script: refresh_hardware_buttons_bars");
+                ESP_LOGV("${TAG_HW_BUTTONS}", "  Page:               %s", page_names[current_page_id]);
+                ESP_LOGV("${TAG_HW_BUTTONS}", "  buttons_bars_pages: %" PRIu32, id(buttons_bars_pages));
+                ESP_LOGV("${TAG_HW_BUTTONS}", "  relay_settings:     %" PRIu8, id(relay_settings));
+                ESP_LOGV("${TAG_HW_BUTTONS}", "  button_mask:        %" PRIu8, button_mask);
+                if ((id(buttons_bars_pages) & (1 << current_page_id)) != 0) {
+                  switch (display_mode) {
+                    case 1:  // EU model
+                      if (button_mask & 1 and buttons_settings & ButtonSettings::ButtonLeft_Enabled) {  // Left button
+                        disp1->fill_area(48, 307, 118, 3, (buttons_settings & ButtonSettings::ButtonLeft_State) ?
+                                                          id(buttons_color_on) : id(buttons_color_off));
+                        disp1->fill_area(47, 308, 120, 1, (buttons_settings & ButtonSettings::ButtonLeft_State) ?
+                                                          id(buttons_color_on) : id(buttons_color_off));
+                      }
+                      if (button_mask & 2 and buttons_settings & ButtonSettings::ButtonRight_Enabled) {  // Right button
+                        disp1->fill_area(289, 307, 118, 3, (buttons_settings & ButtonSettings::ButtonRight_State) ?
+                                                            id(buttons_color_on) : id(buttons_color_off));
+                        disp1->fill_area(288, 308, 120, 1, (buttons_settings & ButtonSettings::ButtonRight_State) ?
+                                                            id(buttons_color_on) : id(buttons_color_off));
+                      }
+                      break;
+                    case 2:  // US Portrait
+                      if (button_mask & 1 and buttons_settings & ButtonSettings::ButtonLeft_Enabled) {  // Left button
+                        disp1->fill_area(17, 466, 118, 3, (buttons_settings & ButtonSettings::ButtonLeft_State) ?
+                                                          id(buttons_color_on) : id(buttons_color_off));
+                        disp1->fill_area(16, 467, 120, 1, (buttons_settings & ButtonSettings::ButtonLeft_State) ?
+                                                          id(buttons_color_on) : id(buttons_color_off));
+                      }
+                      if (button_mask & 2 and buttons_settings & ButtonSettings::ButtonRight_Enabled) {  // Right button
+                        disp1->fill_area(184, 466, 118, 3, (buttons_settings & ButtonSettings::ButtonRight_State) ?
+                                                            id(buttons_color_on) : id(buttons_color_off));
+                        disp1->fill_area(183, 467, 120, 1, (buttons_settings & ButtonSettings::ButtonRight_State) ?
+                                                            id(buttons_color_on) : id(buttons_color_off));
+                      }
+                      break;
+                    case 3:  // US Landscape
+                      if (button_mask & 1 and buttons_settings & ButtonSettings::ButtonLeft_Enabled) {  // Left button
+                        disp1->fill_area(467, 174, 3, 118, (buttons_settings & ButtonSettings::ButtonLeft_State) ?
+                                                            id(buttons_color_on) : id(buttons_color_off));
+                        disp1->fill_area(468, 173, 1, 120, (buttons_settings & ButtonSettings::ButtonLeft_State) ?
+                                                            id(buttons_color_on) : id(buttons_color_off));
+                      }
+                      if (button_mask & 2 and buttons_settings & ButtonSettings::ButtonRight_Enabled) {  // Right button
+                        disp1->fill_area(467, 28, 3, 118, (buttons_settings & ButtonSettings::ButtonRight_State) ?
+                                                          id(buttons_color_on) : id(buttons_color_off));
+                        disp1->fill_area(468, 27, 1, 120, (buttons_settings & ButtonSettings::ButtonRight_State) ?
+                                                          id(buttons_color_on) : id(buttons_color_off));
+                      }
+                      break;
+                  }
+                }
+
+  - id: refresh_hardware_buttons_bars_with_delay
+    mode: restart
+    parameters:
+      button_mask: uint8_t
+      delay: int
+    then:
+      - delay: !lambda return delay;
+      - script.execute:
+          id: refresh_hardware_buttons_bars
+          button_mask: !lambda return button_mask;
+
+  - id: !extend stop_all
+    then:
+      - script.stop: button_left_press_long
+      - script.stop: button_left_press_short
+      - script.stop: button_left_release
+      - script.stop: button_right_press_long
+      - script.stop: button_right_press_short
+      - script.stop: button_right_release
+      - script.stop: refresh_hardware_buttons_bars
+      - script.stop: refresh_hardware_buttons_bars_with_delay
+...

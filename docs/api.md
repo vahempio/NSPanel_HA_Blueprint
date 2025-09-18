@@ -13,8 +13,6 @@ This document provides details on custom actions designed for integration with H
   - [Hardware Button State Indication Action (`hw_button_state`)](#hardware-button-state-indication-action-hw_button_state):
 Updates the visual state (on/off) of the left and right hardware button indicators on the panel.
   - [Icon Action (`icon`)](#icon-action-icon): Updates a chip or custom button's icon, color, and visibility.
-  - [Initialization Action: Global (`init_global`)](#initialization-action-init_global): Transfers global settings on initialization.
-  - [Initialization Action: Hardware (`init_hardware`)](#initialization-action-init_hardware): Transfers NSPanel hardware settings during initialization.
   - [Initialization Action: Home Page (`init_page_home`)](#initialization-action-init_page_home): Transfers settings for the "Home" page on initialization.
   - [Initialization Action: Settings Page (`init_page_settings`)](#initialization-action-init_page_settings): Transfers settings for the "Settings" page on initialization.
   - [Notification Clear Action (`notification_clear`)](#notification-clear-action-notification_clear): Clears the current notification from the screen.
@@ -59,8 +57,6 @@ If you send anything different, the conversion to the RGB565 used by Nextion wil
 | [`entity_details_show`](#entity-details-show-action-entity_details_show) | [Entity Details Show Action](#entity-details-show-action-entity_details_show) | Displays detailed information for a specific entity. |
 | [`hw_button_state`](#hardware-button-state-indication-action-hw_button_state) | [Hardware Button State Indication Action](#hardware-button-state-indication-action-hw_button_state) | Updates the visual state (on/off) of the left and right hardware button indicators on the panel. |
 | [`icon`](#icon-action-icon) | [Icon Action](#icon-action-icon) | Updates a chip or custom button's icon, color, and visibility. |
-| [`init_global`](#initialization-action-init_global) | [Initialization Action](#initialization-action-init_global) | Transfers global settings on initialization. |
-| [`init_hardware`](#initialization-action-init_hardware) | [Initialization Action](#initialization-action-init_hardware) | Transfers NSPanel hardware settings during initialization. |
 | [`init_page_home`](#initialization-action-init_page_home) | [Initialization Action](#initialization-action-init_page_home) | Transfers settings for the "Home" page on initialization. |
 | [`init_page_settings`](#initialization-action-init_page_settings) | [Initialization Action](#initialization-action-init_page_settings) | Transfers settings for the "Settings" page on initialization. |
 | [`notification_clear`](#notification-clear-action-notification_clear) | [Notification Clear Action](#notification-clear-action-notification_clear) | Clears the current notification from the screen. |
@@ -140,6 +136,7 @@ This action is ideal for creating visually dynamic interfaces, allowing elements
 events, or user actions, such as indicating status changes or highlighting specific UI components.
 
 **Parameters:**
+- `page` (string): Identifier of the page where the component is. Use `mem` when setting memory vars or leave empty for current page or global vars.
 - `id` (string): Identifier of the component whose color will be updated. It is essential that this matches the component's ID in your display layout to ensure the correct element is targeted.
 - `color` (int[]): The new color for the component, specified as an RGB array (e.g., `[255, 0, 0]` for red).
 
@@ -147,7 +144,8 @@ events, or user actions, such as indicating status changes or highlighting speci
 ```yaml
 action: esphome.<your_panel_name>_component_color
 data:
-  id: "home.time"
+  page: home
+  id: time
   color: [255, 0, 0]  # Changes the component's color to red
 ```
 > [!NOTE]
@@ -162,6 +160,7 @@ Updates the text of a specified component on the display, enabling dynamic text 
 Ideal for user interfaces that require real-time text updates, such as status messages, labels, or any text-based information display.
 
 **Parameters:**
+- `page` (string): Identifier of the page where the component is. Use `mem` when setting memory vars or leave empty for current page or global vars.
 - `id` (string): Identifier of the component whose text will be updated. Ensure this matches the component's ID in your display layout.
 - `txt` (string): The new text content to display. This can include static text or dynamic information passed at runtime.
 
@@ -169,7 +168,8 @@ Ideal for user interfaces that require real-time text updates, such as status me
 ```yaml
 action: esphome.<your_panel_name>_component_text
 data:
-  id: "home.time"
+  page: home
+  id: time
   txt: "12:34"
 ```
 > [!NOTE]
@@ -184,6 +184,7 @@ Updates the value of a specified component on the display, enabling dynamic valu
 Ideal for interfaces requiring real-time updates of numerical values, such as counters, temperature readings, or any numeric indicators.
 
 **Parameters:**
+- `page` (string): Identifier of the page where the component is. Use `mem` when setting memory vars or leave empty for current page or global vars.
 - `id` (string): Identifier of the component whose value will be updated. It's crucial this matches the component's ID in your display layout accurately.
 - `val` (int): The new integer value to be set for the component. This can represent various data types, depending on the component's purpose (e.g., temperature, humidity levels).
 
@@ -191,7 +192,8 @@ Ideal for interfaces requiring real-time updates of numerical values, such as co
 ```yaml
 action: esphome.<your_panel_name>_component_val
 data:
-  id: "cover.coverslider"
+  page: cover
+  id: coverslider
   val: 25
 ```
 > [!NOTE]
@@ -206,13 +208,15 @@ Hides or shows a list of component on the display, allowing for dynamic interfac
 This action is ideal for creating interactive user interfaces that adapt by hiding or showing certain elements based on user actions, conditions, or events.
 
 **Parameters:**
+- `page` (string): Identifier of the page where the component is. Use `mem` when setting memory vars or leave empty for current page or global vars.
 - `ids` (string[]): Array of identifiers of the components to be hidden/shown. It is crucial that this matches the component's ID in your display layout to ensure the correct element is hidden/shown.
 - `visible` (bool): Set to true to show the component, or false to hide it.
 
 **Home Assistant Example:**
 ```yaml
-action: esphome.<your_panel_name>_component_hide
+action: esphome.<your_panel_name>_components_visibility
 data:
+  page: home
   ids: [ "date", "time" ]  # Hides the date and time display on Home page
   visible: false
 ```
@@ -223,7 +227,7 @@ data:
 > Ensure the ids matches the component on your display you wish to hide or show.
 
 > [!IMPORTANT]
-> This command only works when the page is visible.
+> This command only works when the target page is visible.
 > 
 > If a component being hidden/shown is not part of the current page, the command will fail and an error message will be logged.
 <!-- markdownlint-enable MD028 -->
@@ -285,6 +289,7 @@ Updates a chip or custom button's icon, color, and visibility within Home Assist
 This action is ideal for dynamically updating icons on your Panel, allowing for a customizable and interactive user interface.
 
 **Parameters:**
+- `page` (string): Identifier of the page where the component is. Leave empty for current page.
 - `id` (string): Identifier of the chip or button component. Refer to "[Screen components](#screen-components)" for more details.
 - `icon` (string): Icon codepoint from [HASwitchPlate Material Design Icons](https://htmlpreview.github.io/?https://github.com/jobr99/Generate-HASP-Fonts/blob/master/cheatsheet.html).
 Example: "\uE6E8" for `mdi:lightbulb-on-outline`.
@@ -295,100 +300,14 @@ Example: "\uE6E8" for `mdi:lightbulb-on-outline`.
 ```yaml
 action: esphome.<your_panel_name>_icon
 data:
-  id: "home.chip03"
+  page: home
+  id: chip03
   icon: "\uE6E8"           # Example for mdi:lightbulb-on-outline
   icon_color: [0, 255, 0]  # Green
   visible: true
 ```
 > [!NOTE]
 > Ensure the placeholder `<your_panel_name>` is replaced with the specific panel name you will need to reference in your Home Assistant configuration.
-
-### Initialization Action: `init_global`
-Transfers global settings from the blueprint to ESPHome,
-ensuring that ESPHome is configured with the necessary parameters for operation according to the blueprint specifications.
-
-**Usage:**
-This action is crucial during the initialization phase or when global settings need to be updated to reflect changes in the blueprint.
-It configures ESPHome with settings that affect overall functionality and user interface aspects.
-
-**Parameters:**
-- `blueprint_version` (string): Specifies the version of the blueprint being used.
-- `ent_value_xcen` (int): Alignment of values on entities pages (0 for right (default), 1 for center or 2 for left).
-- `mui_please_confirm` (string): Localized (language based) message used for asking for confirmation in the UI.
-- `mui_unavailable` (string): Localized (language based) message used for  indicating unavailability in the UI.
-- `screensaver_time` (bool): Enables or disables the screensaver time display.
-- `screensaver_time_font` (int): Specifies the font id for the screensaver time display.
-- `screensaver_time_color` (int[]): Specifies the RGB color array for the screensaver time display.
-- `decimal_separator` (string): The char to be used as decimal separator.
-
-**Home Assistant Example:**
-```yaml
-action: esphome.<your_panel_name>_init_global
-data:
-  blueprint_version: "4.2.5"
-  ent_value_xcen: 0
-  mui_please_confirm: "Confirme, por favor."
-  mui_unavailable: "Indisponível"
-  screensaver_time: true
-  screensaver_time_font: 11
-  screensaver_time_color: [165, 42, 42]  # Reddish-brown
-  decimal_separator: ","
-```
-> [!NOTE]
-> Replace `<your_panel_name>` with the specific name of your panel configured in Home Assistant.
->
-> This action should be called to update ESPHome with the latest global settings as specified in your blueprint.
-
-### Initialization Action: `init_hardware`
-Configures NSPanel hardware settings in ESPHome according to the specifications provided in the blueprint,
-ensuring each component operates with the correct parameters for control, appearance, and fallback behavior.
-
-**Usage:**
-This action is essential for initializing or updating button and relay configurations to reflect changes in the blueprint.
-It tailors ESPHome's hardware operations for specific use cases, including local control capabilities, iconography, color indications, and fallback states.
-
-**Parameters:**
-- `relay1_local_control` (bool): Enables or disables local control for Relay 1.
-- `relay1_icon` (string):
-Icon codepoint from [HASwitchPlate Material Design Icons](https://htmlpreview.github.io/?https://github.com/jobr99/Generate-HASP-Fonts/blob/master/cheatsheet.html) for Relay 1.
-- `relay1_icon_color` (int[]): The RGB color array for Relay 1's icon.
-- `relay1_fallback` (bool): Determines the fallback state for Relay 1 in case of communication loss.
-- `relay2_local_control` (bool): Enables or disables local control for Relay 2.
-- `relay2_icon` (string):
-Icon codepoint from [HASwitchPlate Material Design Icons](https://htmlpreview.github.io/?https://github.com/jobr99/Generate-HASP-Fonts/blob/master/cheatsheet.html) for Relay 2.
-- `relay2_icon_color` (int[]): The RGB color array for Relay 2's icon.
-- `relay2_fallback` (bool): Determines the fallback state for Relay 2 in case of communication loss.
-- `button_left` (bool): Enable/disable left button status visualization.
-- `button_right` (bool): Enable/disable right button status visualization.
-- `button_bar_color_on` (int[]): RGB color array for the hardware button bar when the status is `On`.
-- `button_bar_color_off` (int[]): RGB color array for the hardware button bar when the status is `Off`.
-- `embedded_climate` (bool): Indicates whether climate control is embedded in the panel.
-- `embedded_climate_friendly_name` (string): Provides a friendly name for the embedded climate control.
-- `embedded_indoor_temperature` (bool): Determines if indoor temperature display is enabled.
-
-**Home Assistant Example:**
-```yaml
-action: esphome.<your_panel_name>_init_hardware
-data:
-  relay1_local_control: true
-  relay1_icon: "\uE3A5"           # Example for mdi:numeric-1-box-outline
-  relay1_icon_color: [248, 0, 0]  # Red
-  relay1_fallback: false
-  relay2_local_control: true
-  relay2_icon: "\uE3A8"           # Example for mdi:numeric-2-box-outline
-  relay2_icon_color: [0, 252, 0]  # Green
-  relay2_fallback: true
-  button_left: true
-  button_right: true
-  button_bar_color_on: [31, 169, 255]  # Blueish
-  button_bar_color_off: [44, 44, 44]   # Dark gray
-  embedded_climate: true
-  embedded_climate_friendly_name: "Termostato da Sala"
-  embedded_indoor_temperature: true
-```
-> [!NOTE]
-> Replace `<your_panel_name>` with the specific name of your panel configured in Home Assistant.
-> This action initializes buttons and relay settings based on the provided parameters, customizing relay functionality and presentation as defined in the blueprint.
 
 ### Initialization Action: `init_page_home`
 Configures the "Home" page settings and user interface elements in ESPHome,

@@ -8,12 +8,12 @@
 #####################################################################################################
 ---
 substitutions:
+  ##############################
+  ## Change only in your      ##
+  ## local yaml substitutions ##
+  ##############################
   ### Local thermostat defaults ###
   temp_max: "25"
-
-  ##### DO NOT CHANGE THIS #####
-  addon_climate_heat: "true"
-  ##############################
 
 esphome:
   platformio_options:

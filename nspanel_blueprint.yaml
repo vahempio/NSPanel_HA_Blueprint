@@ -10,7 +10,7 @@ blueprint:
   description: >
     # NSPanel Configuration via Blueprint: Complete UI-Based Setup
 
-    **Version**: v4.3.16
+    **Version**: v4.3.33
 
 
     This project enables comprehensive configuration of your NSPanel through a Blueprint featuring a user interface.
@@ -51,7 +51,7 @@ blueprint:
           default: en
           selector:
             language:
-              languages: [en, bg, hr, cs, da, nl, et, fi, fr, de, el, he, hu, id, it, ja, ko, lv, lt, nb, pl, pt, ro, ru, sk, sl, es, sv, tr, uk, zh-tw]
+              languages: [en, bg, hr, ca, cs, da, nl, et, fi, fr, de, el, he, hu, id, it, ja, ko, lv, lt, nb, pl, pt, ro, ru, sk, sl, es, sv, tr, uk, zh-tw]
         date_format:
           name: Date Format
           description: "Select the format for date to display."
@@ -3654,6 +3654,19 @@ blueprint:
               step: 1
               unit_of_measurement: milliseconds
               mode: box
+        delay_boot:
+          name: Command Delay to Prevent Overload during panel's boot
+          description: >
+            Adjusts the delay between sequential commands to the Nextion display, preventing overload and synchronization issues.
+            While increasing delay enhances stability, it may slow down the boot sequence.
+          default: 250
+          selector:
+            number:
+              min: 0
+              max: 2500
+              step: 1
+              unit_of_measurement: milliseconds
+              mode: box
         tft_path:
           name: Nextion TFT File Folder (Optional)
           description: >
@@ -3690,7 +3703,7 @@ blueprint:
         sun_entity:
           name: System Settings - Sun Entity
           description: "Select the entity that indicates the Sun's position."
-          default: "sun.sun"
+          default: []
           selector:
             entity:
               filter:
@@ -3763,8 +3776,27 @@ trigger_variables:
       group05: !input utilities_page01_group05_line_reference
       group06: !input utilities_page01_group06_line_reference
 
+  sun_entity: !input sun_entity
+  sun_state_list: >
+    {{
+      (
+        states.sun
+        | selectattr("entity_id", "in", sun_entity)
+        | map(attribute="state")
+        | list
+      )
+      if states.sun | length > 0
+      else []
+    }}
+  sun_is_up: >
+    {{
+      sun_state_list | first == "above_horizon"
+      if sun_state_list | length > 0
+      else true
+    }}
+
 variables:
-  blueprint_version: '4.3.16'
+  blueprint_version: '4.3.33'
   pages:
     current: '{{ states(currentpage) }}'
     home: "home"
@@ -4585,8 +4617,8 @@ trigger:
       event_data:
         entity_id: !input weather_entity
       id: weather_state_change
-    - platform: state
-      entity_id: !input sun_entity
+    - platform: template
+      value_template: '{{ sun_is_up }}'
       id: sun_state_change
 
   ##### Trigger - TFT #################################################################################################################
@@ -4693,20 +4725,10 @@ action:
               else version("0.0.0")
             )
         }}
+
       date_format_temp: !input 'date_format'
       # Avoid breaking change for existing users with legacy type format
       date_format: '{{ date_format_temp if date_format_temp not in ["%d.%m", "%d/%m", "%-d/%-m", "%-m/%-d"] else "%A, " ~ date_format_temp }}'
-
-      sun_entity_input: !input sun_entity
-      sun_entity: >
-        {{
-          sun_entity_input
-          if
-            sun_entity_input is string and
-            sun_entity_input.split("sun.") | count == 2
-          else ((states.sun | map(attribute="entity_id") | list | first) if states.sun | selectattr("entity_id", "defined") | list | count > 0 else None)
-        }}
-      sun_is_up: '{{ is_state(sun_entity, "above_horizon") if sun_entity is string and sun_entity.split("sun.") | count == 2 else true }}'
 
       # yamllint disable rule:line-length rule:braces
       device_class_icons:
@@ -4847,8 +4869,8 @@ action:
         {{
           language_tmp
           if language_tmp is string
-            and language_tmp in ["ar", "bg", "hr", "cs", "da", "nl", "et", "fi", "fr", "de", "el", "he", "hu", "id", "it", "ja",
-                                  "ko", "lv", "lt", "nb", "pl", "pt", "ro", "ru", "sk", "sl", "es", "sv", "tr", "uk", "zh-tw"]
+            and language_tmp in ["ar", "bg", "hr", "ca", "cs", "da", "nl", "et", "fi", "fr", "de", "el", "he", "hu", "id", "it",
+                                "ja","ko", "lv", "lt", "nb", "pl", "pt", "ro", "ru", "sk", "sl", "es", "sv", "tr", "uk", "zh-tw"]
           else "en"
         }}
 
@@ -5005,6 +5027,82 @@ action:
           meridiem:
             am: AM
             pm: PM
+        ca:     # Catalan
+          bytes_per_char: 1
+          weekdays:
+            mon: Dilluns
+            tue: Dimarts
+            wed: Dimecres
+            thu: Dijous
+            fri: Divendres
+            sat: Dissabte
+            sun: Diumenge
+          weekdays_short:
+            mon: Dl
+            tue: Dt
+            wed: Dc
+            thu: Dj
+            fri: Dv
+            sat: Ds
+            sun: Dg
+          months:
+            jan: Gener
+            feb: Febrer
+            mar: Març
+            apr: Abril
+            may: Maig
+            jun: Juny
+            jul: Juliol
+            aug: Agost
+            sep: Setembre
+            oct: Octubre
+            nov: Novembre
+            dec: Desembre
+          months_short:
+            jan: Gen
+            feb: Feb
+            mar: Mar
+            apr: Abr
+            may: Mai
+            jun: Jun
+            jul: Jul
+            aug: Ago
+            sep: Set
+            oct: Oct
+            nov: Nov
+            dec: Des
+          relative_day:
+            today: Avui
+            tomorrow: Demà
+            in_2_days: En 2 dies
+            in_3_days: En 3 dies
+            in_4_days: En 4 dies
+          climate:
+            states:
+              'on': Encès
+              'off': Apagat
+            heat: Escalfar
+          please_confirm: Si us plau, confirmi
+          unavailable: No disponible
+          unknown: Desconegut
+          no_name: Sense nom
+          alarm:
+            home: Casa
+            away: Fora
+            night: Nit
+            vacation: Vacances
+            bypass: Bypass
+            disarm: Desactivar
+          settings:
+            reboot: Reiniciar
+            sleep: Dormir
+            brightness: Brillantor
+            bright: Brillant
+            dimming: Atenuació
+            dim: Fosc
+          meridiem:
+            am: a.m.
+            pm: p.m.
         cs:     # Czech
           bytes_per_char: 1
           weekdays:
@@ -8103,7 +8201,7 @@ action:
     choose:
       ##### DATE #####
       - alias: 'Date'
-        conditions:
+        conditions:  # time_state
           - condition: trigger
             id: time_state
         sequence:
@@ -8114,7 +8212,8 @@ action:
           - &refresh-date
             service: 'esphome.{{ nspanel_name }}_component_text'
             data:
-              id: home.date
+              page: home
+              id: date
               txt: >
                 {{
                   as_timestamp(now())
@@ -8134,7 +8233,7 @@ action:
         conditions:
           - condition: trigger
             id: nspanel_event
-        sequence:
+        sequence:  # nspanel_event
           - &variable_nspanel_event
             variables:
               nspanel_event: '{{ trigger.event.data }}'
@@ -8143,19 +8242,28 @@ action:
               - alias: Boot init
                 conditions:
                   - '{{ nspanel_event.type == "boot"}}'
-                  - '{{ nspanel_event.step is defined and nspanel_event.step in ["nextion_init", "timeout"]}}'
+                  - '{{ nspanel_event.step is defined and nspanel_event.step in ["start", "timeout"]}}'
                 sequence:
-                  - if: '{{ nspanel_event.step == "timeout" }}'
-                    then:
-                      delay: 15
                   - &global_settings
-                    if: '{{ true }}'
-                    then:
-                      - service: 'esphome.{{ nspanel_name }}_component_text'
-                        data:
-                          id: boot.ver_blueprint
-                          txt: 'Blueprint: {{ blueprint_version }}'
-                        continue_on_error: true
+                    sequence:
+                      - alias: Blueprint version
+                        sequence:
+                          - service: 'esphome.{{ nspanel_name }}_component_text'
+                            data:
+                              page: boot
+                              id: ver_blueprint
+                              txt: 'Blueprint: {{ blueprint_version }}'
+                            continue_on_error: true
+
+                          - &delay_boot
+                            delay:
+                              milliseconds: !input delay_boot
+                          - service: 'esphome.{{ nspanel_name }}_component_text'
+                            data:
+                              page: mem
+                              id: ver_blueprint
+                              txt: '{{ blueprint_version }}'
+                            continue_on_error: true
 
                       - &variables_hardware
                         variables:
@@ -8183,105 +8291,150 @@ action:
                                 name: !input 'right_button_name'
                                 hold_select: !input 'right_button_hold_select'
                                 bar_always_visible: !input hw_button_bar_right_always_show
-                            relay1_icon: !input relay01_icon
-                            relay2_icon: !input relay02_icon
 
                       - variables:
                           bt_utilities_icon: !input home_button08_icon
                           bt_entities_icon: !input home_button06_icon
                           bt_qrcode_icon: !input home_button05_icon
-                          qrcode:
-                            enabled: !input qrcode_enabled
-                            title: !input qrcode_label
-                            qrcode: !input qrcode_value
                           home_indoor_temp_icon: !input home_indoor_temp_icon
-                          timezone: !input timezone
-                          timezone_code: >
-                            {{
-                              timezone.split('(')[1]|replace(')', '')
-                              if timezone.split('(') | count > 0
-                              else timezone
-                            }}
 
-                      ##### Timezone #####
-                      - *delay_default
-                      - service: 'esphome.{{ nspanel_name }}_set_string'
-                        data:
-                          component: "timezone"
-                          val: '{{ timezone_code }}'
-                        continue_on_error: true
+                      - alias: Timezone
+                        sequence:
+                          - variables:
+                              timezone: !input timezone
+                              timezone_code: >
+                                {{
+                                  timezone.split('(')[1] | replace(')', '')
+                                  if
+                                    timezone is defined and
+                                    timezone is string and
+                                    timezone | length > 1 and
+                                    timezone.split('(') | count > 1
+                                  else timezone
+                                }}
+                          - *delay_boot
+                          - service: 'esphome.{{ nspanel_name }}_component_text'
+                            data:
+                              page: mem
+                              id: timezone
+                              txt: '{{ timezone_code }}'
+                            continue_on_error: true
 
-                      ##### Home page #####
-                      - *delay_default
-                      - service: 'esphome.{{ nspanel_name }}_init_page_home'
-                        data:
-                          date_color: !input date_label_color
-                          time_format: !input time_format
-                          time_color: !input time_label_color
-                          meridiem: '{{ dict.values(mui[language].meridiem) | list }}'
-                          chip_font: !input chip_font_size
-                          custom_buttons_font: !input custom_buttons_font_size
-                          qrcode: !input qrcode_enabled
-                          qrcode_icon: >
-                            {{
-                              all_icons[bt_bt_qrcode_icon.split("mdi:")[1]]
-                              if bt_bt_qrcode_icon is string and bt_bt_qrcode_icon.split("mdi:")[1] in all_icons
-                              else all_icons["qrcode-scan"]
-                            }}
-                          qrcode_icon_color: !input home_button05_icon_color
-                          entities_pages_icon: >
-                            {{
-                              all_icons[bt_entities_icon.split("mdi:")[1]]
-                              if bt_entities_icon is string and bt_entities_icon.split("mdi:")[1] in all_icons
-                              else all_icons["format-list-bulleted-square"]
-                            }}
-                          entities_pages_icon_color: !input home_button06_icon_color
-                          utilities: !input utilities_enabled
-                          utilities_icon: >
-                            {{
-                              all_icons[bt_utilities_icon.split("mdi:")[1]]
-                              if bt_utilities_icon is string and bt_utilities_icon.split("mdi:")[1] in all_icons
-                              else all_icons.gauge
-                            }}
-                          utilities_icon_color: !input home_button08_icon_color
-                          outdoor_temp_font: !input home_outdoor_temp_font
-                        continue_on_error: true
+                      - alias: Home page
+                        sequence:
+                          - *delay_boot
+                          - service: 'esphome.{{ nspanel_name }}_init_page_home'
+                            data:
+                              date_color: !input date_label_color
+                              time_format: !input time_format
+                              time_color: !input time_label_color
+                              meridiem: '{{ dict.values(mui[language].meridiem) | list }}'
+                              chip_font: !input chip_font_size
+                              custom_buttons_font: !input custom_buttons_font_size
+                              qrcode: !input qrcode_enabled
+                              qrcode_icon: >
+                                {{
+                                  all_icons[bt_bt_qrcode_icon.split("mdi:")[1]]
+                                  if bt_bt_qrcode_icon is string and bt_bt_qrcode_icon.split("mdi:")[1] in all_icons
+                                  else all_icons["qrcode-scan"]
+                                }}
+                              qrcode_icon_color: !input home_button05_icon_color
+                              entities_pages_icon: >
+                                {{
+                                  all_icons[bt_entities_icon.split("mdi:")[1]]
+                                  if bt_entities_icon is string and bt_entities_icon.split("mdi:")[1] in all_icons
+                                  else all_icons["format-list-bulleted-square"]
+                                }}
+                              entities_pages_icon_color: !input home_button06_icon_color
+                              utilities: !input utilities_enabled
+                              utilities_icon: >
+                                {{
+                                  all_icons[bt_utilities_icon.split("mdi:")[1]]
+                                  if bt_utilities_icon is string and bt_utilities_icon.split("mdi:")[1] in all_icons
+                                  else all_icons.gauge
+                                }}
+                              utilities_icon_color: !input home_button08_icon_color
+                              outdoor_temp_font: !input home_outdoor_temp_font
+                            continue_on_error: true
 
-                      ##### Home page - outdoor_temp
-                      - *delay_default
-                      - service: 'esphome.{{ nspanel_name }}_component_color'
-                        data:
-                          id: home.outdoor_temp
-                          color: !input home_outdoor_temp_label_color
-                        continue_on_error: true
+                      ###### Notification button ######
+                      - &refresh_page_home_notification_button
+                        sequence:
+                          ##### Home page - Notification icon (bt_notific) - Colors
+                          - *delay_boot
+                          - service: 'esphome.{{ nspanel_name }}_component_color'
+                            data:
+                              page: mem
+                              id: notification_icon_color_normal
+                              color: !input home_button04_icon_color01
+                            continue_on_error: true
+                          - *delay_boot
+                          - service: 'esphome.{{ nspanel_name }}_component_color'
+                            data:
+                              page: mem
+                              id: notification_icon_color_unread
+                              color: !input home_button04_icon_color02
+                            continue_on_error: true
 
-                      ##### Home page - indr_temp
-                      - *delay_default
-                      - service: 'esphome.{{ nspanel_name }}_component_color'
-                        data:
-                          id: home.indr_temp
-                          color: !input home_indoor_temp_label_color
-                        continue_on_error: true
-                      - *delay_default
-                      - service: 'esphome.{{ nspanel_name }}_component_text'
-                        data:
-                          id: home.indr_temp_icon
-                          txt: >
-                            {{
-                              all_icons[home_indoor_temp_icon.split("mdi:")[1]]
-                              if home_indoor_temp_icon.split("mdi:") | count == 2 and home_indoor_temp_icon.split("mdi:")[1] in all_icons
-                              else all_icons.thermometer
-                            }}
-                        continue_on_error: true
-                      - *delay_default
-                      - service: 'esphome.{{ nspanel_name }}_component_color'
-                        data:
-                          id: home.indr_temp_icon
-                          color: !input home_indoor_temp_icon_color
-                        continue_on_error: true
+                          ##### Home page - Notification icon (bt_notific) - Icon
+                          - *delay_boot
+                          - variables:
+                              bt_notific_icon: !input home_button04_icon
+                          - service: 'esphome.{{ nspanel_name }}_icon'
+                            data:
+                              page: home
+                              id: bt_notific
+                              icon: >
+                                {{
+                                  all_icons[bt_notific_icon.split(":")[1]]
+                                  if bt_notific_icon is string and bt_notific_icon.split(":")[1] in all_icons
+                                  else all_icons.email
+                                }}
+                              icon_color: !input home_button04_icon_color01
+                              visible: false
+                            continue_on_error: true
 
-                      ###### Status / Chips bar ######
-                      - repeat:
+                      - alias: Home page - outdoor_temp
+                        sequence:
+                          - *delay_boot
+                          - service: 'esphome.{{ nspanel_name }}_component_color'
+                            data:
+                              page: home
+                              id: outdoor_temp
+                              color: !input home_outdoor_temp_label_color
+                            continue_on_error: true
+
+                      - alias: Home page - indr_temp
+                        sequence:
+                          - *delay_boot
+                          - service: 'esphome.{{ nspanel_name }}_component_color'
+                            data:
+                              page: home
+                              id: indr_temp
+                              color: !input home_indoor_temp_label_color
+                            continue_on_error: true
+                          - *delay_boot
+                          - service: 'esphome.{{ nspanel_name }}_component_text'
+                            data:
+                              page: home
+                              id: indr_temp_icon
+                              txt: >
+                                {{
+                                  all_icons[home_indoor_temp_icon.split("mdi:")[1]]
+                                  if home_indoor_temp_icon.split("mdi:") | count == 2 and home_indoor_temp_icon.split("mdi:")[1] in all_icons
+                                  else all_icons.thermometer
+                                }}
+                            continue_on_error: true
+                          - *delay_boot
+                          - service: 'esphome.{{ nspanel_name }}_component_color'
+                            data:
+                              page: home
+                              id: indr_temp_icon
+                              color: !input home_indoor_temp_icon_color
+                            continue_on_error: true
+
+                      - alias: Status / Chips bar
+                        repeat:
                           for_each: >
                             {{
                               home_page.chips
@@ -8293,29 +8446,32 @@ action:
                               | list
                             }}
                           sequence:
-                            - *delay_default
+                            - *delay_boot
                             - service: 'esphome.{{ nspanel_name }}_component_color'
                               data:
-                                id: 'home.{{ repeat.item.component }}'
+                                page: home
+                                id: '{{ repeat.item.component }}'
                                 color: '{{ repeat.item.icon_color_rgb }}'
                               continue_on_error: true
 
-                      ##### Home page - Values 01 - 04
-                      - repeat:
+                      - alias: Home page - Values 01 - 04
+                        repeat:
                           for_each: '{{ home_page.entity_value | list }}'
                           sequence:
                             - variables:
                                 value_entity_id_is_valid: '{{ repeat.item.entity is defined and repeat.item.entity is string and repeat.item.entity.split(".") | count == 2 }}'
-                            - *delay_default
+                            - *delay_boot
                             - service: 'esphome.{{ nspanel_name }}_component_color'
                               data:
-                                id: '{{ repeat.item.page }}.{{ repeat.item.component }}'
+                                page: home
+                                id: '{{ repeat.item.component }}'
                                 color: '{{ repeat.item.label_color_rgb if value_entity_id_is_valid else [0, 0, 0] }}'
                               continue_on_error: true
-                            - *delay_default
+                            - *delay_boot
                             - service: 'esphome.{{ nspanel_name }}_component_text'
                               data:
-                                id: '{{ repeat.item.page }}.{{ repeat.item.component }}_icon'
+                                page: '{{ repeat.item.page }}'
+                                id: '{{ repeat.item.component }}_icon'
                                 txt: >
                                   {{
                                     all_icons[repeat.item.icon.split("mdi:")[1]]
@@ -8329,150 +8485,372 @@ action:
                                   }}
                               continue_on_error: true
 
-                      ##### NSPanel Left Button Name #####
-                      - if: '{{ hardware.buttons.left.name | length > 0 }}'
+                      - alias: NSPanel Left Button Name
+                        if: '{{ hardware.buttons.left.name | length > 0 }}'
                         then:
                           ### LABEL Font Color ###
-                          - *delay_default
+                          - *delay_boot
                           - service: 'esphome.{{ nspanel_name }}_component_color'
                             data:
-                              id: home.left_bt_text
+                              page: home
+                              id: left_bt_text
                               color: !input left_button_color
                             continue_on_error: true
                           ### LABEL Font ###
-                          - *delay_default
+                          - *delay_boot
                           - service: 'esphome.{{ nspanel_name }}_component_text'
                             data:
-                              id: home.left_bt_text
+                              page: home
+                              id: left_bt_text
                               txt: '{{ hardware.buttons.left.name }}'
                             continue_on_error: true
 
-                      ##### NSPanel Right Button Name #####
-                      - if: '{{ hardware.buttons.right.name | length > 0 }}'
+                      - alias: NSPanel Right Button Name
+                        if: '{{ hardware.buttons.right.name | length > 0 }}'
                         then:
                           ### LABEL Font Color ###
-                          - *delay_default
+                          - *delay_boot
                           - service: 'esphome.{{ nspanel_name }}_component_color'
                             data:
-                              id: home.right_bt_text
+                              page: home
+                              id: right_bt_text
                               color: !input right_button_color
                             continue_on_error: true
                           ### LABEL Font ###
-                          - *delay_default
+                          - *delay_boot
                           - service: 'esphome.{{ nspanel_name }}_component_text'
                             data:
-                              id: home.right_bt_text
+                              page: home
+                              id: right_bt_text
                               txt: '{{ hardware.buttons.right.name }}'
                             continue_on_error: true
 
-                      - *delay_default
-                      - service: 'esphome.{{ nspanel_name }}_qrcode'
-                        data:
-                          title: '{{ qrcode.title if qrcode.enabled else "" }}'
-                          qrcode: '{{ qrcode.qrcode if qrcode.enabled else "" }}'
-                          show: false
-                        continue_on_error: true
-
-                      - *delay_default
-                      - service: 'esphome.{{ nspanel_name }}_init_page_settings'
-                        data:
-                          reboot: '{{ mui[language].settings.reboot }}'
-                          brightness: '{{ mui[language].settings.brightness }}'
-                          bright: '{{ mui[language].settings.bright }}'
-                          dim: '{{ mui[language].settings.dim }}'
-                        continue_on_error: true
-
-                      - variables:
-                          climate_entity_id_valid: '{{ climate is string and climate is match "climate." }}'
-                          climate_friendly_name: '{{ state_attr(climate, "friendly_name") if climate_entity_id_valid else "" }}'
-                          hw_buttons_bars_pages: !input hw_buttons_bars_pages
-
-                      - *delay_default
-                      - service: 'esphome.{{ nspanel_name }}_set_bool'
-                        data:
-                          component: "is_climate"
-                          val: '{{ climate_entity_id_valid }}'
-                        continue_on_error: true
-
-                      - *delay_default
-                      - service: 'esphome.{{ nspanel_name }}_init_hardware'
-                        data:
-                          relay1_local_control: '{{ hardware.buttons.left.entity == relay01_entity }}'
-                          relay1_icon: '{{ all_icons[hardware.relay1_icon.split("mdi:")[1]] if hardware.relay1_icon.split("mdi:")[1] in all_icons else all_icons["numeric-1-box-outline"] }}'
-                          relay1_icon_color: !input relay01_icon_color
-                          relay1_fallback: !input relay_1_local_fallback
-                          relay2_local_control: '{{ hardware.buttons.right.entity == relay02_entity }}'
-                          relay2_icon: '{{ all_icons[hardware.relay2_icon.split("mdi:")[1]] if hardware.relay2_icon.split("mdi:")[1] in all_icons else all_icons["numeric-2-box-outline"] }}'
-                          relay2_icon_color: !input relay02_icon_color
-                          relay2_fallback: !input relay_2_local_fallback
-                          button_left: '{{ hardware.buttons.left.bar_always_visible or hardware.buttons.left.state_entity_is_valid or hardware.buttons.left.entity_is_valid }}'
-                          button_right: '{{ hardware.buttons.right.bar_always_visible or hardware.buttons.right.state_entity_is_valid or hardware.buttons.right.entity_is_valid }}'
-                          button_bar_pages: '{{ hw_buttons_bars_pages | map("int") | sum }}'
-                          button_bar_color_on: !input hw_buttons_bar_color_on
-                          button_bar_color_off: !input hw_buttons_bar_color_off
-                          embedded_climate: '{{ climate == thermostat_embedded }}'
-                          embedded_climate_friendly_name: '{{ climate_friendly_name if climate_friendly_name else "" }}'  # To do: v4.4 - This will send name even when no embedded climate
-                          embedded_indoor_temperature: '{{ embedded_indoor_temperature }}'
-                        continue_on_error: true
-
-                        # Update Hardware buttons bars states
-                      - if: '{{ true }}'
-                        then:
+                      - alias: QRcode
+                        sequence:
                           - variables:
-                              hw_btn_left_state: >
-                                {{ (states(hardware.buttons.left.state_entity) | default("unavailable")
-                                  if hardware.buttons.left.state_entity_is_valid
-                                  else (states(hardware.buttons.left.entity) | default("unavailable")
-                                    if hardware.buttons.left.entity_is_valid else "unavailable")) in enum.states.on }}
-                              hw_btn_right_state: >
-                                {{ (states(hardware.buttons.right.state_entity) | default("unavailable")
-                                  if hardware.buttons.right.state_entity_is_valid
-                                  else (states(hardware.buttons.right.entity) | default("unavailable")
-                                    if hardware.buttons.right.entity_is_valid else "unavailable")) in enum.states.on }}
-                          - if: '{{ hw_btn_left_state == hw_btn_right_state }}'
-                            then:  # Save one service call if both buttons have the same state
-                              - *delay_default
-                              - service: 'esphome.{{ nspanel_name }}_hw_button_state'
+                              qrcode:
+                                enabled: !input qrcode_enabled
+                                title: !input qrcode_label
+                                qrcode: !input qrcode_value
+                          - *delay_boot
+                          - service: 'esphome.{{ nspanel_name }}_qrcode'
+                            data:
+                              title: '{{ qrcode.title if qrcode.enabled else "" }}'
+                              qrcode: '{{ qrcode.qrcode if qrcode.enabled else "" }}'
+                              show: false
+                            continue_on_error: true
+
+                      - alias: Page settings labels
+                        sequence:
+                          - *delay_boot
+                          - service: 'esphome.{{ nspanel_name }}_component_text'
+                            data:
+                              page: settings
+                              id: lbl_reboot
+                              txt: '{{ mui[language].settings.reboot }}'
+                            continue_on_error: true
+
+                          - *delay_boot
+                          - service: 'esphome.{{ nspanel_name }}_component_text'
+                            data:
+                              page: settings
+                              id: lbl_brightness
+                              txt: '{{ mui[language].settings.brightness }}'
+                            continue_on_error: true
+
+                          - *delay_boot
+                          - service: 'esphome.{{ nspanel_name }}_component_text'
+                            data:
+                              page: settings
+                              id: lbl_bright
+                              txt: '{{ mui[language].settings.bright }}'
+                            continue_on_error: true
+
+                          - *delay_boot
+                          - service: 'esphome.{{ nspanel_name }}_component_text'
+                            data:
+                              page: settings
+                              id: lbl_dim
+                              txt: '{{ mui[language].settings.dim }}'
+                            continue_on_error: true
+
+                      - alias: Relay settings
+                        sequence:
+                          - variables:
+                              relay1_icon: !input relay01_icon
+                              relay2_icon: !input relay02_icon
+                              relay1_local_control: '{{ hardware.buttons.left.entity == relay01_entity }}'
+                              relay1_fallback: !input relay_1_local_fallback
+                              relay2_local_control: '{{ hardware.buttons.right.entity == relay02_entity }}'
+                              relay2_fallback: !input relay_2_local_fallback
+
+                          - *delay_boot
+                          - service: 'esphome.{{ nspanel_name }}_component_text'
+                            data:
+                              page: mem
+                              id: relay1_icon
+                              txt: >
+                                {{
+                                  all_icons[relay1_icon.split("mdi:")[1]]
+                                  if relay1_icon.split("mdi:")[1] in all_icons
+                                  else all_icons["numeric-1-box-outline"]
+                                }}
+                            continue_on_error: true
+
+                          - *delay_boot
+                          - service: 'esphome.{{ nspanel_name }}_component_text'
+                            data:
+                              page: mem
+                              id: relay2_icon
+                              txt: >
+                                {{
+                                  all_icons[relay2_icon.split("mdi:")[1]]
+                                  if relay2_icon.split("mdi:")[1] in all_icons
+                                  else all_icons["numeric-2-box-outline"]
+                                }}
+                            continue_on_error: true
+
+                          - *delay_boot
+                          - service: 'esphome.{{ nspanel_name }}_component_color'
+                            data:
+                              page: mem
+                              id: relay1_icon_color
+                              color: !input relay01_icon_color
+                            continue_on_error: true
+
+                          - *delay_boot
+                          - service: 'esphome.{{ nspanel_name }}_component_color'
+                            data:
+                              page: mem
+                              id: relay2_icon_color
+                              color: !input relay02_icon_color
+                            continue_on_error: true
+
+                          - *delay_boot
+                          - service: 'esphome.{{ nspanel_name }}_component_val'
+                            data:
+                              page: mem
+                              id: relay_settings
+                              val: >
+                                {{
+                                  (relay1_local_control|int) +
+                                  (relay1_fallback|int * 2) +
+                                  (relay2_local_control|int * 16) +
+                                  (relay2_fallback|int * 32)
+                                }}
+                            continue_on_error: true
+
+                      - alias: Climate
+                        sequence:
+                          - variables:
+                              climate_entity_id_valid: '{{ climate is string and climate is match "climate." }}'
+
+                          - *delay_boot
+                          - service: 'esphome.{{ nspanel_name }}_component_val'
+                            data:
+                              page: mem
+                              id: is_climate
+                              val: '{{ 1 if climate_entity_id_valid else 0 }}'
+                            continue_on_error: true
+
+                          - alias: Climate friendly name
+                            if: '{{ climate == thermostat_embedded }}'
+                            then:
+                              - *delay_boot
+                              - service: 'esphome.{{ nspanel_name }}_component_text'
                                 data:
-                                  button_mask: 3  # Both buttons
-                                  state: '{{ hw_btn_left_state }}'
-                                continue_on_error: true
-                            else:  # Send individual calls if the buttons have different states
-                              - *delay_default
-                              - service: 'esphome.{{ nspanel_name }}_hw_button_state'
-                                data:
-                                  button_mask: 1  # Left button
-                                  state: '{{ hw_btn_left_state }}'
-                                continue_on_error: true
-                              - *delay_default
-                              - service: 'esphome.{{ nspanel_name }}_hw_button_state'
-                                data:
-                                  button_mask: 2  # Right button
-                                  state: '{{ hw_btn_right_state }}'
+                                  page: mem
+                                  id: addon_climate_friendly_name
+                                  txt: '{{ state_attr(climate, "friendly_name") if climate_entity_id_valid else "" }}'
                                 continue_on_error: true
 
-                      # Global settings
-                      - variables:
-                          entitypages_value_alignment: !input entitypages_value_alignment
-                      - *delay_default
-                      - service: 'esphome.{{ nspanel_name }}_init_global'
-                        data:
-                          blueprint_version: '{{ blueprint_version }}'
-                          ent_value_xcen: '{{ int(entitypages_value_alignment) if is_number(entitypages_value_alignment) else 0 }}'
-                          mui_please_confirm: '{{ mui[language].please_confirm }}'
-                          mui_unavailable: '{{ mui[language].unavailable }}'
-                          screensaver_time: !input screensaver_display_time
-                          screensaver_time_font: !input screensaver_display_time_font_size
-                          screensaver_time_color: !input screensaver_display_time_font_color
-                          decimal_separator: !input decimal_separator
-                          # bytes_per_char: '{{ mui[language].bytes_per_char }}'  # To do: Enable this on new protocol
-                        continue_on_error: true
+                          - alias: Embedded climate
+                            sequence:
+                              - *delay_boot
+                              - service: 'esphome.{{ nspanel_name }}_component_val'
+                                data:
+                                  page: mem
+                                  id: embedded_climate
+                                  val: '{{ 1 if climate == thermostat_embedded else 0 }}'
+                                continue_on_error: true
 
-                      # Disable empty buttons pages
-                      - repeat:
+                          - alias: Embedded indoor temperature
+                            sequence:
+                              - *delay_boot
+                              - service: 'esphome.{{ nspanel_name }}_component_val'
+                                data:
+                                  page: mem
+                                  id: embedded_indoor_temperature
+                                  val: '{{ 1 if embedded_indoor_temperature else 0 }}'
+                                continue_on_error: true
+
+                      - alias: HW Buttons settings
+                        sequence:
+                          - *delay_boot
+                          - service: 'esphome.{{ nspanel_name }}_component_color'
+                            data:
+                              page: mem
+                              id: button_bar_color_on
+                              color: !input hw_buttons_bar_color_on
+                            continue_on_error: true
+
+                          - *delay_boot
+                          - service: 'esphome.{{ nspanel_name }}_component_color'
+                            data:
+                              page: mem
+                              id: button_bar_color_off
+                              color: !input hw_buttons_bar_color_off
+                            continue_on_error: true
+
+                          - *delay_boot
+                          - service: 'esphome.{{ nspanel_name }}_component_val'
+                            data:
+                              page: mem
+                              id: button_left
+                              val: >
+                                {{
+                                  hardware.buttons.left.bar_always_visible or
+                                  hardware.buttons.left.state_entity_is_valid or
+                                  hardware.buttons.left.entity_is_valid
+                                }}
+                            continue_on_error: true
+
+                          - *delay_boot
+                          - service: 'esphome.{{ nspanel_name }}_component_val'
+                            data:
+                              page: mem
+                              id: button_right
+                              val: >
+                                {{
+                                  hardware.buttons.right.bar_always_visible or
+                                  hardware.buttons.right.state_entity_is_valid or
+                                  hardware.buttons.right.entity_is_valid
+                                }}
+                            continue_on_error: true
+
+                          - alias: hw_buttons_bars_pages
+                            sequence:
+                              - variables:
+                                  hw_buttons_bars_pages: !input hw_buttons_bars_pages
+                              - *delay_boot
+                              - service: 'esphome.{{ nspanel_name }}_component_val'
+                                data:
+                                  page: mem
+                                  id: buttons_bars_pages
+                                  val: '{{ hw_buttons_bars_pages | map("int") | sum }}'
+                                continue_on_error: true
+
+                          - alias: Update Hardware buttons bars states
+                            sequence:
+                              - variables:
+                                  hw_btn_left_state: >
+                                    {{ (states(hardware.buttons.left.state_entity) | default("unavailable")
+                                      if hardware.buttons.left.state_entity_is_valid
+                                      else (states(hardware.buttons.left.entity) | default("unavailable")
+                                        if hardware.buttons.left.entity_is_valid else "unavailable")) in enum.states.on }}
+                                  hw_btn_right_state: >
+                                    {{ (states(hardware.buttons.right.state_entity) | default("unavailable")
+                                      if hardware.buttons.right.state_entity_is_valid
+                                      else (states(hardware.buttons.right.entity) | default("unavailable")
+                                        if hardware.buttons.right.entity_is_valid else "unavailable")) in enum.states.on }}
+                              # Send individual calls if the buttons have different states
+                              - *delay_boot
+                              - service: 'esphome.{{ nspanel_name }}_component_val'
+                                data:
+                                  page: mem
+                                  id: hw_bt_left  # Left button
+                                  val: '{{ 1 if hw_btn_left_state else 0 }}'
+                                continue_on_error: true
+                              - *delay_boot
+                              - service: 'esphome.{{ nspanel_name }}_component_val'
+                                data:
+                                  page: mem
+                                  id: hw_bt_right  # Right button
+                                  val: '{{ 1 if hw_btn_right_state else 0 }}'
+                                continue_on_error: true
+
+                      - alias: Global settings - Decimal separator
+                        sequence:
+                          - *delay_boot
+                          - service: 'esphome.{{ nspanel_name }}_component_text'
+                            data:
+                              page: mem
+                              id: decimal_separator
+                              txt: !input decimal_separator
+                            continue_on_error: true
+
+                      - alias: Entity pages alignment
+                        sequence:
+                          - variables:
+                              entitypages_value_alignment: !input entitypages_value_alignment
+                          - *delay_boot
+                          - service: 'esphome.{{ nspanel_name }}_component_val'
+                            data:
+                              page: mem
+                              id: ent_value_xcen
+                              val: '{{ int(entitypages_value_alignment) if is_number(entitypages_value_alignment) else 0 }}'
+                            continue_on_error: true
+
+                      - alias: mui texts (localization)
+                        sequence:
+                          - *delay_boot
+                          - service: 'esphome.{{ nspanel_name }}_component_text'
+                            data:
+                              page: mem
+                              id: mui_please_confirm
+                              txt: '{{ mui[language].please_confirm }}'
+                            continue_on_error: true
+
+                          - *delay_boot
+                          - service: 'esphome.{{ nspanel_name }}_component_text'
+                            data:
+                              page: mem
+                              id: mui_unavailable
+                              txt: '{{ mui[language].unavailable }}'
+                            continue_on_error: true
+
+                          - *delay_boot
+                          - service: 'esphome.{{ nspanel_name }}_component_val'
+                            data:
+                              page: mem
+                              id: bytes_per_char
+                              val: '{{ mui[language].bytes_per_char }}'
+                            continue_on_error: true
+
+                      - alias: Screensaver settings
+                        sequence:
+                          - variables:
+                              screensaver_display_time: !input screensaver_display_time
+                              screensaver_time_font: !input screensaver_display_time_font_size
+                          - *delay_boot
+                          - service: 'esphome.{{ nspanel_name }}_component_color'
+                            data:
+                              page: screensaver
+                              id: text
+                              color: !input screensaver_display_time_font_color
+                            continue_on_error: true
+
+                          - *delay_boot
+                          - service: 'esphome.{{ nspanel_name }}_component_val'
+                            data:
+                              page: mem
+                              id: screensaver_display_time
+                              val: '{{ 1 if screensaver_display_time else 0 }}'
+                            continue_on_error: true
+
+                          - *delay_boot
+                          - service: 'esphome.{{ nspanel_name }}_component_val'
+                            data:
+                              page: mem
+                              id: screensaver_time_font
+                              val: '{{ int(screensaver_time_font) }}'
+                            continue_on_error: true
+
+                      - alias: Disable empty buttons pages
+                        repeat:
                           for_each: '{{ pages.buttonpages }}'
                           sequence:
-                            - *delay_default
+                            - *delay_boot
                             - service: 'esphome.{{ nspanel_name }}_command'
                               data:
                                 cmd: >
@@ -8490,11 +8868,11 @@ action:
                                   }}
                               continue_on_error: true
 
-                      # Disable empty entity pages
-                      - repeat:
+                      - alias: Disable empty entity pages
+                        repeat:
                           for_each: '{{ pages.entitypages }}'
                           sequence:
-                            - *delay_default
+                            - *delay_boot
                             - service: 'esphome.{{ nspanel_name }}_command'
                               data:
                                 cmd: >
@@ -8512,8 +8890,7 @@ action:
                                   }}
                               continue_on_error: true
 
-                      ##### Update Date & Time before showing the Home page #####
-                      - *refresh-date
+                      - *refresh-date  # Update Date & Time before showing the Home page
 
               ##### Service call #####
               - alias: NSPanel service call
@@ -8539,13 +8916,13 @@ action:
                                   target_temp_low: >
                                     {{
                                       nspanel_event.value
-                                      if nspanel_event.key == "target_temp_low"
+                                      if nspanel_event.value is defined and nspanel_event.key == "target_temp_low"
                                       else state_attr(nspanel_event.entity, "target_temp_low") | int(-999)
                                     }}
                                   target_temp_high: >
                                     {{
                                       nspanel_event.value
-                                      if nspanel_event.key == "target_temp_high"
+                                      if nspanel_event.value is defined and nspanel_event.key == "target_temp_high"
                                       else state_attr(nspanel_event.entity, "target_temp_high") | int(-999)
                                     }}
                               - condition:
@@ -8562,6 +8939,7 @@ action:
                             conditions:
                               - '{{ nspanel_event.service == "fan.turn_on" }}'
                               - '{{ nspanel_event.key == "percentage" }}'
+                              - '{{ nspanel_event.value is defined }}'
                             sequence:
                               - service: '{{ nspanel_event.service }}'
                                 data: {}
@@ -8604,18 +8982,28 @@ action:
                                   entity_id: '{{ nspanel_event.entity }}'
                                 continue_on_error: true
                         default:
+                          - condition:
+                              - '{{ nspanel_event.service is defined }}'
+                              - '{{ nspanel_event.key is defined }}'
+                              - '{{ nspanel_event.value is defined }}'
+                              - '{{ nspanel_event.entity is defined }}'
                           - service: '{{ nspanel_event.service }}'
                             data: {"{{ nspanel_event.key }}":"{{ nspanel_event.value }}"}
                             target:
                               entity_id: '{{ nspanel_event.entity }}'
                             continue_on_error: true
                     else:
+                      - condition:
+                          - '{{ nspanel_event.service is defined }}'
+                          - '{{ nspanel_event.entity is defined }}'
                       - service: '{{ nspanel_event.service }}'
                         target:
                           entity_id: '{{ nspanel_event.entity }}'
                         continue_on_error: true
                   - delay:
                       milliseconds: '{{ media_player_update_delay }}'
+                  - condition:
+                      - '{{ nspanel_event.entity is defined }}'
                   - service: homeassistant.update_entity
                     data:
                       entity_id: '{{ nspanel_event.entity }}'
@@ -8666,7 +9054,8 @@ action:
                               - *delay_default
                               - service: 'esphome.{{ nspanel_name }}_component_text'
                                 data:
-                                  id: home.outdoor_temp
+                                  page: home
+                                  id: outdoor_temp
                                   txt: '{{ outdoor_temp | round(1) ~ temperature_units }}'
                                 continue_on_error: true
 
@@ -8681,7 +9070,8 @@ action:
                                   - *delay_default
                                   - service: 'esphome.{{ nspanel_name }}_components_visibility'
                                     data:
-                                      ids: ["home.indr_temp", "home.indr_temp_icon"]
+                                      page: home
+                                      ids: ["indr_temp", "indr_temp_icon"]
                                       visible: '{{ home_indoor_temp_visible }}'
                                     continue_on_error: true
                               - condition: '{{ home_indoor_temp_visible and not embedded_indoor_temperature }}'
@@ -8704,39 +9094,9 @@ action:
                               - *delay_default
                               - service: 'esphome.{{ nspanel_name }}_component_text'
                                 data:
-                                  id: home.indr_temp
+                                  page: home
+                                  id: indr_temp
                                   txt: '{{ indoor_temp.state | round(1) ~ indoor_temp_units if not embedded_indoor_temperature else "" }}'
-                                continue_on_error: true
-
-                          ###### Notification button ######
-                          - &refresh_page_home_notification_button
-                            if: '{{ true }}'
-                            then:
-                              - &variables_home_page_notify_button
-                                variables:
-                                  notification_icon_color_normal: !input home_button04_icon_color01
-                                  notification_icon_color_unread: !input home_button04_icon_color02
-                                  bt_notific_icon: !input home_button04_icon
-                                  notification_text: 'sensor.{{ nspanel_name }}_notification_text'
-                                  notification_unread: 'switch.{{ nspanel_name }}_notification_unread'
-                                  notification_text_state: '{{ states(notification_text) if has_value(notification_text) else "" }}'
-                                  notification_unread_state: '{{ states(notification_unread) | default(true) }}'
-                                  notification_visible: '{{ notification_text_state is string and notification_text_state | length > 0 }}'
-                                  notification_icon: >
-                                    {{
-                                      (
-                                        all_icons[bt_notific_icon.split(":")[1]]
-                                        if bt_notific_icon is string and bt_notific_icon.split(":")[1] in all_icons
-                                        else all_icons.email
-                                      ) if notification_visible else ""
-                                    }}
-                              - *delay_default
-                              - service: 'esphome.{{ nspanel_name }}_icon'
-                                data:
-                                  id: home.bt_notific
-                                  icon: '{{ notification_icon }}'
-                                  icon_color: '{{ notification_icon_color_unread if notification_unread_state else notification_icon_color_normal }}'
-                                  visible: '{{ notification_visible }}'
                                 continue_on_error: true
 
                           ###### Custom buttons ######
@@ -8757,7 +9117,8 @@ action:
                                     - *variable_entity
                                     - service: 'esphome.{{ nspanel_name }}_icon'
                                       data:
-                                        id: 'home.{{ repeat.item.component }}'
+                                        page: home
+                                        id: '{{ repeat.item.component }}'
                                         icon: '{{ entity.icon if entity.icon is defined else all_icons.blank }}'
                                         icon_color: '{{ entity.icon_color if entity.icon_color is defined else [0, 0, 0] }}'
                                         visible: true
@@ -8765,7 +9126,8 @@ action:
                                   else:
                                     - service: 'esphome.{{ nspanel_name }}_icon'
                                       data:
-                                        id: 'home.{{ repeat.item.component }}'
+                                        page: home
+                                        id: '{{ repeat.item.component }}'
                                         icon: '{{ all_icons.blank }}'
                                         icon_color: '{{ [0, 0, 0] }}'
                                         visible: false
@@ -8785,7 +9147,8 @@ action:
                               - *delay_default
                               - service: 'esphome.{{ nspanel_name }}_icon'
                                 data:
-                                  id: home.chip_climate
+                                  page: home
+                                  id: chip_climate
                                   icon: '{{ entity.icon if entity.icon is defined else "" }}'
                                   icon_color: '{{ entity.icon_color if entity.icon_color is defined else [] }}'
                                   visible: >
@@ -8861,7 +9224,8 @@ action:
                                     - *delay_default
                                     - service: 'esphome.{{ nspanel_name }}_icon'
                                       data:
-                                        id: 'home.{{ repeat.item.component }}'
+                                        page: home
+                                        id: '{{ repeat.item.component }}'
                                         icon: '{{ entity.icon if chip_visible and entity.icon is defined else "" }}'
                                         icon_color: >
                                           {{
@@ -8923,7 +9287,8 @@ action:
                                             - *delay_default
                                             - service: 'esphome.{{ nspanel_name }}_component_text'
                                               data:
-                                                id: '{{ repeat.item.page }}.{{ repeat.item.component }}_icon'
+                                                page: '{{ repeat.item.page }}'
+                                                id: '{{ repeat.item.component }}_icon'
                                                 txt: '{{ entity.icon }}'
                                               continue_on_error: true
                                         - if: '{{ entity.icon_color != [200, 204, 200] }}'
@@ -8931,14 +9296,16 @@ action:
                                             - *delay_default
                                             - service: 'esphome.{{ nspanel_name }}_component_color'
                                               data:
-                                                id: '{{ repeat.item.page }}.{{ repeat.item.component }}_icon'
+                                                page: '{{ repeat.item.page }}'
+                                                id: '{{ repeat.item.component }}_icon'
                                                 color: '{{ entity.icon_color }}'
                                               continue_on_error: true
 
                                         - *delay_default
                                         - service: 'esphome.{{ nspanel_name }}_component_text'
                                           data:
-                                            id: '{{ repeat.item.page }}.{{ repeat.item.component }}'
+                                            page: '{{ repeat.item.page }}'
+                                            id: '{{ repeat.item.component }}'
                                             txt: &value_with_unit_and_translations >
                                               {{
                                                 (
@@ -8991,6 +9358,7 @@ action:
                                   - *delay_default
                                   - service: 'esphome.{{ nspanel_name }}_component_text'
                                     data:
+                                      page: ""
                                       id: page_label
                                       txt: '{{ buttons_pages.labels[event_page] | string }}'
                                     continue_on_error: true
@@ -8999,6 +9367,7 @@ action:
                               - *delay_default
                               - service: 'esphome.{{ nspanel_name }}_component_val'
                                 data:
+                                  page: ""
                                   id: confirm
                                   val: '{{ confirm_value }}'
                                 continue_on_error: true
@@ -9138,19 +9507,22 @@ action:
                           - *delay_default
                           - service: 'esphome.{{ nspanel_name }}_component_val'
                             data:
-                              id: light.lightslider
+                              page: light
+                              id: lightslider
                               val: '{{ curr_brightness }}'
                             continue_on_error: true
                           - *delay_default
                           - service: 'esphome.{{ nspanel_name }}_component_text'
                             data:
-                              id: light.light_value
+                              page: light
+                              id: light_value
                               txt: '{{ curr_brightness }}%'
                             continue_on_error: true
                           - *delay_default
                           - service: 'esphome.{{ nspanel_name }}_component_text'
                             data:
-                              id: light.light_value_2
+                              page: light
+                              id: light_value_2
                               txt: '{{ curr_brightness }}%'
                             continue_on_error: true
 
@@ -9172,19 +9544,22 @@ action:
                               - *delay_default
                               - service: 'esphome.{{ nspanel_name }}_component_text'
                                 data:
-                                  id: light.temp_value
+                                  page: light
+                                  id: temp_value
                                   txt: '{{ curr_color_temp }}'
                                 continue_on_error: true
                               - *delay_default
                               - service: 'esphome.{{ nspanel_name }}_component_text'
                                 data:
-                                  id: light.temp_value_2
+                                  page: light
+                                  id: temp_value_2
                                   txt: '{{ curr_color_temp }}'
                                 continue_on_error: true
                               - *delay_default
                               - service: 'esphome.{{ nspanel_name }}_component_val'
                                 data:
-                                  id: light.tempslider
+                                  page: light
+                                  id: tempslider
                                   val: '{{ curr_color_temp }}'
                                 continue_on_error: true
                               - *delay_default
@@ -9200,12 +9575,14 @@ action:
                               - *delay_default
                               - service: 'esphome.{{ nspanel_name }}_component_color'
                                 data:
+                                  page: light
                                   id: power_button
                                   color: [192, 192, 192]
                                 continue_on_error: true
                               - *delay_default
                               - service: 'esphome.{{ nspanel_name }}_components_visibility'
                                 data:
+                                  page: light
                                   ids: ["temp_button", "temp_value_2", "temp_touch"]
                                   visible: true
                                 continue_on_error: true
@@ -9216,6 +9593,7 @@ action:
                               - *delay_default
                               - service: 'esphome.{{ nspanel_name }}_components_visibility'
                                 data:
+                                  page: light
                                   ids: ["color_button", "color_touch"]
                                   visible: true
                                 continue_on_error: true
@@ -9259,13 +9637,15 @@ action:
                           - *delay_default
                           - service: 'esphome.{{ nspanel_name }}_component_text'
                             data:
-                              id: cover.cover_open
+                              page: cover
+                              id: cover_open
                               txt: '{{ cover_icons.open }}'
                             continue_on_error: true
                           - *delay_default
                           - service: 'esphome.{{ nspanel_name }}_component_text'
                             data:
-                              id: cover.cover_close
+                              page: cover
+                              id: cover_close
                               txt: '{{ cover_icons.close }}'
                             continue_on_error: true
 
@@ -9273,13 +9653,15 @@ action:
                           - *delay_default
                           - service: 'esphome.{{ nspanel_name }}_component_val'
                             data:
-                              id: cover.coverslider
+                              page: cover
+                              id: coverslider
                               val: '{{ (state_attr(cover_entity, "current_position") | int ) | round(0) }}'
                             continue_on_error: true
                           - *delay_default
                           - service: 'esphome.{{ nspanel_name }}_component_text'
                             data:
-                              id: cover.cover_value
+                              page: cover
+                              id: cover_value
                               txt: '{{ (state_attr(cover_entity, "current_position") | int ) | round(0) }} %'
                             continue_on_error: true
 
@@ -9327,21 +9709,24 @@ action:
                               - *delay_default
                               - service: 'esphome.{{ nspanel_name }}_component_text'
                                 data:
-                                  id: cover.battery_value
+                                  page: cover
+                                  id: battery_value
                                   txt: '{{ battery_level }} %'
                                 continue_on_error: true
                               ### ICON Battery Font Color ###
                               - *delay_default
                               - service: 'esphome.{{ nspanel_name }}_component_color'
                                 data:
-                                  id: cover.battery_icon
+                                  page: cover
+                                  id: battery_icon
                                   color: '{{ nextion.color.grey_super_light }}'
                                 continue_on_error: true
                               ### ICON Battery Font ###
                               - *delay_default
                               - service: 'esphome.{{ nspanel_name }}_component_text'
                                 data:
-                                  id: cover.battery_icon
+                                  page: cover
+                                  id: battery_icon
                                   txt: '{{ all_icons[battery_icon] }}'
                                 continue_on_error: true
 
@@ -9376,25 +9761,29 @@ action:
                               - *delay_default
                               - service: 'esphome.{{ nspanel_name }}_component_text'
                                 data:
+                                  page: fan
                                   id: bt_oscillate
                                   txt: '{{ all_icons["autorenew"] if state_attr(fan_entity, "oscillating") | default(false) else all_icons["autorenew-off"] }}'
                                 continue_on_error: true
                               - *delay_default
                               - service: 'esphome.{{ nspanel_name }}_component_color'
                                 data:
-                                  id: fan.bt_oscillate
+                                  page: fan
+                                  id: bt_oscillate
                                   color: '{{ nextion.color.grey_white }}'
                                 continue_on_error: true
                               - *delay_default
                               - service: 'esphome.{{ nspanel_name }}_components_visibility'
                                 data:
-                                  ids: ["fan.bt_oscillate"]
+                                  page: fan
+                                  ids: ["bt_oscillate"]
                                   visible: true
                                 continue_on_error: true
                           - condition: '{{ fan.steps > 0 and fan.supported_features | bitwise_and(1) > 0 }}'  # Set speed
                           - *delay_default
                           - service: 'esphome.{{ nspanel_name }}_component_val'
                             data:
+                              page: fan
                               id: fanslider
                               val: '{{ ((fan.percentage / 100) * fan.steps) | round(0) | int(0) }}'
                             continue_on_error: true
@@ -9406,24 +9795,28 @@ action:
                           - *delay_default
                           - service: 'esphome.{{ nspanel_name }}_component_text'
                             data:
+                              page: fan
                               id: fan_value
                               txt: '{{ fan.percentage }}%'
                             continue_on_error: true
                           - *delay_default
                           - service: 'esphome.{{ nspanel_name }}_component_color'
                             data:
-                              id: fan.button_up
+                              page: fan
+                              id: button_up
                               color: '{{ nextion.color.grey_white if fan.percentage < 100 else nextion.color.grey_dark }}'
                             continue_on_error: true
                           - *delay_default
                           - service: 'esphome.{{ nspanel_name }}_component_color'
                             data:
-                              id: fan.button_down
+                              page: fan
+                              id: button_down
                               color: '{{ nextion.color.grey_white if fan.percentage > 0 else nextion.color.grey_dark }}'
                             continue_on_error: true
                           - *delay_default
                           - service: 'esphome.{{ nspanel_name }}_component_color'
                             data:
+                              page: fan
                               id: power_button
                               color: [192, 192, 192]
                             continue_on_error: true
@@ -9511,7 +9904,7 @@ action:
                                     milliseconds: '{{ media_player_update_interval }}'
                                   continue_on_timeout: true
                                 - variables:
-                                    wait_completed: '{{ wait.completed }}'
+                                    wait_completed: '{{ wait.completed and media_player.media_duration > 0 }}'
                               until:
                                 - or:
                                     - '{{ wait_completed }}'
@@ -9586,12 +9979,15 @@ action:
                                   else "unknown"
                                 }}
                               hvac_modes: '{{ state_attr(climate_entity, "hvac_modes") if settings_entity_domain == "climate" }}'
+                              friendly_name_raw: '{{ state_attr(climate_entity, "friendly_name") }}'
+                              friendly_name: '{{ friendly_name_raw if friendly_name_raw and friendly_name_raw is string else "" }}'
                           - condition: '{{ settings_entity_domain == "climate" }}'
                           - *delay_default
                           - service: 'esphome.{{ nspanel_name }}_component_text'
                             data:
+                              page: ""
                               id: page_label
-                              txt: '{{ state_attr(climate_entity, "friendly_name") }}'
+                              txt: '{{ friendly_name }}'
                             continue_on_error: true
 
                           ##### Values #####
@@ -9647,7 +10043,8 @@ action:
                                     - *delay_default
                                     - service: 'esphome.{{ nspanel_name }}_component_text'
                                       data:
-                                        id: '{{ repeat.item.page }}.{{ repeat.item.component }}_icon'
+                                        page: '{{ repeat.item.page }}'
+                                        id: '{{ repeat.item.component }}_icon'
                                         txt: '{{ var_icon }}'
                                       continue_on_error: true
                                 - if: '{{ repeat.item.label_color_rgb != [200, 204, 200] }}'
@@ -9655,7 +10052,8 @@ action:
                                     - *delay_default
                                     - service: 'esphome.{{ nspanel_name }}_component_color'
                                       data:
-                                        id: '{{ repeat.item.page }}.{{ repeat.item.component }}'
+                                        page: '{{ repeat.item.page }}'
+                                        id: '{{ repeat.item.component }}'
                                         color: '{{ repeat.item.label_color_rgb }}'
                                       continue_on_error: true
 
@@ -9730,7 +10128,8 @@ action:
                                     - *delay_default
                                     - service: 'esphome.{{ nspanel_name }}_component_color'
                                       data:
-                                        id: 'climate.{{ repeat.item.component }}'
+                                        page: climate
+                                        id: '{{ repeat.item.component }}'
                                         color: >
                                           {{
                                             nextion.color[repeat.item.color]
@@ -9742,13 +10141,15 @@ action:
                                     - *delay_default
                                     - service: 'esphome.{{ nspanel_name }}_component_text'
                                       data:
-                                        id: 'climate.{{ repeat.item.component }}'
+                                        page: climate
+                                        id: '{{ repeat.item.component }}'
                                         txt: '{{ all_icons[repeat.item.icon] }}'
                                       continue_on_error: true
                                     ### Enable button click ###
                                     - *delay_default
                                     - service: 'esphome.{{ nspanel_name }}_components_visibility'
                                       data:
+                                        page: climate
                                         ids: '{{ [ repeat.item.component ] }}'
                                         visible: true
                                       continue_on_error: true
@@ -9783,6 +10184,7 @@ action:
                                     - *delay_default
                                     - service: 'esphome.{{ nspanel_name }}_component_color'
                                       data:
+                                        page: climate
                                         id: '{{ repeat.item.component }}'
                                         color: '{{ entity.icon_color }}'
                                       continue_on_error: true
@@ -9790,6 +10192,7 @@ action:
                                     - *delay_default
                                     - service: 'esphome.{{ nspanel_name }}_component_text'
                                       data:
+                                        page: climate
                                         id: '{{ repeat.item.component }}'
                                         txt: '{{ entity.icon }}'
                                       continue_on_error: true
@@ -9797,6 +10200,7 @@ action:
                                     - *delay_default
                                     - service: 'esphome.{{ nspanel_name }}_components_visibility'
                                       data:
+                                        page: climate
                                         ids: '{{ [ repeat.item.component ] }}'
                                         visible: true
                                       continue_on_error: true
@@ -9807,6 +10211,7 @@ action:
                         sequence: &refresh_entity_pages
                           - &variables-entity_pages
                             variables:
+                              event_page_constructor: true
                               event_page: '{{ nspanel_event.page if nspanel_event is defined and nspanel_event.page is defined else pages.current }}'
                               entitypages_show_entities_icons: !input entitypages_show_entities_icons
                           ##### Entity page - Label #####
@@ -9815,6 +10220,7 @@ action:
                               - *delay_default
                               - service: 'esphome.{{ nspanel_name }}_component_text'
                                 data:
+                                  page: '{{ event_page }}'
                                   id: page_label
                                   txt: '{{ entities_pages.labels[event_page] }}'
                                 continue_on_error: true
@@ -9839,16 +10245,32 @@ action:
                                       name: '{{ repeat.item.name if repeat.item.name is defined else None }}'
                                     unit_of_measurement: '{{ state_attr(entity_id, "unit_of_measurement") | default("") }}'
                                 - *variable_entity
-                                - *delay_default
-                                - service: 'esphome.{{ nspanel_name }}_value'
-                                  data:
-                                    id: '{{ repeat.item.page }}.{{ repeat.item.component }}'
-                                    icon: '{{ entity.icon if entitypages_show_entities_icons else "" }}'
-                                    icon_color: []
-                                    name: '{{ entity.name }}'
-                                    value: *value_with_unit_and_translations
-                                    value_color: []
-                                  continue_on_error: true
+                                - alias: Entities pages - Constructor
+                                  if: '{{ event_page_constructor is defined and event_page_constructor }}'
+                                  then:
+                                    - *delay_default
+                                    - service: 'esphome.{{ nspanel_name }}_component_text'
+                                      data:
+                                        page: '{{ repeat.item.page }}'
+                                        id: '{{ repeat.item.component }}_icon'
+                                        txt: '{{ entity.icon if entitypages_show_entities_icons else "" }}'
+                                      continue_on_error: true
+                                    - *delay_default
+                                    - service: 'esphome.{{ nspanel_name }}_component_text'
+                                      data:
+                                        page: '{{ repeat.item.page }}'
+                                        id: '{{ repeat.item.component }}_label'
+                                        txt: '{{ entity.name }}'
+                                      continue_on_error: true
+                                - alias: Entities pages - Values (with icons)
+                                  sequence:
+                                    - *delay_default
+                                    - service: 'esphome.{{ nspanel_name }}_component_text'
+                                      data:
+                                        page: '{{ repeat.item.page }}'
+                                        id: '{{ repeat.item.component }}'
+                                        txt: *value_with_unit_and_translations
+                                      continue_on_error: true
 
                       ## PAGE WEATHER (WEATHER01 to WEATHER05) ##
                       - alias: Weather pages
@@ -9905,7 +10327,8 @@ action:
                           - *delay_default
                           - service: 'esphome.{{ nspanel_name }}_component_text'
                             data:
-                              id: '{{ page_name }}.day'
+                              page: '{{ page_name }}'
+                              id: 'day'
                               txt: '{{ (dict.values(mui[language].relative_day) | list)[page_index] }}'
                             continue_on_error: true
 
@@ -9913,7 +10336,8 @@ action:
                           - *delay_default
                           - service: 'esphome.{{ nspanel_name }}_component_text'
                             data:
-                              id: '{{ page_name }}.date'
+                              page: '{{ page_name }}'
+                              id: 'date'
                               txt: >
                                 {{
                                   as_timestamp(now() + timedelta(days= (page_index)))
@@ -10329,7 +10753,8 @@ action:
                                       - *delay_default
                                       - service: 'esphome.{{ nspanel_name }}_component_text'
                                         data:
-                                          id: '{{ page_name }}.temperature'  ### Temperature MIN/MAX ###
+                                          page: '{{ page_name }}'
+                                          id: 'temperature'  ### Temperature MIN/MAX ###
                                           txt: '{{ temperature_string }}'
                                         continue_on_error: true
 
@@ -10340,20 +10765,23 @@ action:
                                         - *delay_default
                                         - service: 'esphome.{{ nspanel_name }}_component_text'
                                           data:
-                                            id: '{{ page_name }}.value0{{ repeat.index }}'
+                                            page: '{{ page_name }}'
+                                            id: 'value0{{ repeat.index }}'
                                             txt: '{{ repeat.item.value }}'
                                           continue_on_error: true
                                         - *delay_default
                                         - service: 'esphome.{{ nspanel_name }}_component_text'
                                           data:
-                                            id: '{{ page_name }}.value0{{ repeat.index }}_icon'
+                                            page: '{{ page_name }}'
+                                            id: 'value0{{ repeat.index }}_icon'
                                             txt: '{{ repeat.item.icon }}'
                                           continue_on_error: true
                                 else: &forecast_unavailable
                                   - *delay_default
                                   - service: 'esphome.{{ nspanel_name }}_component_text'
                                     data:
-                                      id: '{{ page_name }}.value01'
+                                      page: '{{ page_name }}'
+                                      id: 'value01'
                                       txt: '{{ mui[language].unavailable }}'
                                     continue_on_error: true
                             else: *forecast_unavailable
@@ -10362,22 +10790,32 @@ action:
                       - alias: Utilities page
                         conditions: '{{ nspanel_event.page == pages.utilities }}'
                         sequence: &refresh_page_utilities
-                          ## Page title
+                          - alias: Utilities page - Title
+                            sequence:
+                              - variables:
+                                  page_icon: '{{ pages_utilities.title.icon.split("mdi:")[1] if pages_utilities.title.icon is string and pages_utilities.title.icon.split("mdi:") | count == 2 }}'
+
+                              - *delay_default
+                              - service: 'esphome.{{ nspanel_name }}_component_text'
+                                data:
+                                  page: utilities
+                                  id: title_icon
+                                  txt: '{{ all_icons[page_icon] if page_icon in all_icons else all_icons.gauge }}'
+                                continue_on_error: true
+
+                              - *delay_default
+                              - service: 'esphome.{{ nspanel_name }}_component_text'
+                                data:
+                                  page: utilities
+                                  id: title
+                                  txt: '{{ pages_utilities.title.label }}'
+                                continue_on_error: true
+
                           - variables:
                               utilities_constructor_init: true
-                              page_icon: '{{ pages_utilities.title.icon.split("mdi:")[1] if pages_utilities.title.icon is string and pages_utilities.title.icon.split("mdi:") | count == 2 }}'
-                          - *delay_default
-                          - service: 'esphome.{{ nspanel_name }}_value'
-                            data:
-                              id: utilities.title
-                              icon: '{{ all_icons[page_icon] if page_icon in all_icons else all_icons.gauge }}'
-                              icon_color: []
-                              name: ''
-                              value: '{{ pages_utilities.title.label }}'
-                              value_color: []
-                            continue_on_error: true
-                          ## Groups
-                          - repeat:
+
+                          - alias: Utilities page - Groups
+                            repeat:
                               for_each: '{{ pages_utilities.groups | list }}'
                               sequence: &refresh_page_utilities_group
                                 - variables:
@@ -10406,6 +10844,7 @@ action:
                                     - *delay_default
                                     - service: 'esphome.{{ nspanel_name }}_icon'
                                       data:
+                                        page: utilities
                                         id: '{{ repeat.item.name }}_icon'
                                         icon: '{{ all_icons[icon_code] if icon_code in all_icons else "" }}'
                                         icon_color: '{{ repeat.item.color }}'
@@ -10417,18 +10856,21 @@ action:
                                     - *delay_default
                                     - service: 'esphome.{{ nspanel_name }}_component_text'
                                       data:
+                                        page: utilities
                                         id: '{{ repeat.item.name }}_label'
                                         txt: '{{ repeat.item.label }}'
                                       continue_on_error: true
                                     - *delay_default
                                     - service: 'esphome.{{ nspanel_name }}_component_color'
                                       data:
+                                        page: utilities
                                         id: '{{ repeat.item.name }}_label'
                                         color: '{{ repeat.item.color }}'
                                       continue_on_error: true
                                     - *delay_default
                                     - service: 'esphome.{{ nspanel_name }}_components_visibility'
                                       data:
+                                        page: utilities
                                         ids: '{{ [repeat.item.name ~ "_label"] }}'
                                         visible: true
                                       continue_on_error: true
@@ -10481,12 +10923,14 @@ action:
                                             - *delay_default
                                             - service: 'esphome.{{ nspanel_name }}_component_color'
                                               data:
+                                                page: utilities
                                                 id: '{{ repeat.item.name }}'
                                                 color: '{{ repeat.item.color }}'
                                               continue_on_error: true
                                             - *delay_default
                                             - service: 'esphome.{{ nspanel_name }}_components_visibility'
                                               data:
+                                                page: utilities
                                                 ids: '{{ [repeat.item.name] }}'
                                                 visible: true
                                               continue_on_error: true
@@ -10495,12 +10939,14 @@ action:
                                             - *delay_default
                                             - service: 'esphome.{{ nspanel_name }}_component_color'
                                               data:
+                                                page: ""
                                                 id: '{{ repeat.item.name }}b'
                                                 color: '{{ repeat.item.color }}'
                                               continue_on_error: true
                                             - *delay_default
                                             - service: 'esphome.{{ nspanel_name }}_components_visibility'
                                               data:
+                                                page: utilities
                                                 ids: '{{ [repeat.item.name ~ "b"] }}'
                                                 visible: true
                                               continue_on_error: true
@@ -10532,6 +10978,7 @@ action:
                                     - *delay_default
                                     - service: 'esphome.{{ nspanel_name }}_components_visibility'
                                       data:
+                                        page: utilities
                                         ids: '{{ [repeat.item.name ~ "_line"] }}'
                                         visible: true
                                       continue_on_error: true
@@ -10578,6 +11025,7 @@ action:
                                                   - *delay_default
                                                   - service: 'esphome.{{ nspanel_name }}_component_text'
                                                     data:
+                                                      page: ""
                                                       id: icon_state
                                                       txt: '{{ entity.icon }}'
                                                     continue_on_error: true
@@ -10586,6 +11034,7 @@ action:
                                                   - *delay_default
                                                   - service: 'esphome.{{ nspanel_name }}_component_text'
                                                     data:
+                                                      page: ""
                                                       id: page_label
                                                       txt: '{{ entity.name }}'
                                                     continue_on_error: true
@@ -10907,13 +11356,6 @@ action:
                                 Troubleshooting steps and more information are available in the online documentation: [Panel startup issues - Blueprint is not detected](https://github.com/Blackymas/NSPanel_HA_Blueprint/blob/main/docs/error_initializing.md#blueprint-is-not-detected).
                             continue_on_error: true
                       # yamllint enable rule:line-length
-
-              ##### Notification changed #####
-              - alias: Notification changed
-                conditions:
-                  - '{{ nspanel_event.type == "notification_changed"}}'
-                sequence:
-                  - *refresh_page_home_notification_button
 
               ##### Other events #####
               - alias: Other events
@@ -11269,10 +11711,16 @@ action:
                   ) in enum.states.on
                 }}
           - *delay_default
-          - service: 'esphome.{{ nspanel_name }}_hw_button_state'
+          - service: 'esphome.{{ nspanel_name }}_component_val'
             data:
-              button_mask: '{{ 1 if trigger.id in ["left_button_state", "left_button_alt_state"] else 2 }}'
-              state: '{{ button_state }}'
+              page: mem
+              id: >
+                {{
+                  "hw_bt_left"
+                  if trigger.id in ["left_button_state", "left_button_alt_state"]
+                  else "hw_bt_right"
+                }}
+              val: '{{ 1 if button_state else 0 }}'
             continue_on_error: true
           - delay:
               milliseconds: 250
@@ -11281,10 +11729,16 @@ action:
           - if: '{{ button_state_new != button_state }}'
             then:
               - *delay_default
-              - service: 'esphome.{{ nspanel_name }}_hw_button_state'
+              - service: 'esphome.{{ nspanel_name }}_component_val'
                 data:
-                  button_mask: '{{ 1 if trigger.id in ["left_button_state", "left_button_alt_state"] else 2 }}'
-                  state: '{{ button_state_new }}'
+                  page: mem
+                  id: >
+                    {{
+                      "hw_bt_left"
+                      if trigger.id in ["left_button_state", "left_button_alt_state"]
+                      else "hw_bt_right"
+                    }}
+                  val: '{{ 1 if button_state_new else 0 }}'
                 continue_on_error: true
 
       ##### OUTDOOR TEMP - entity #####

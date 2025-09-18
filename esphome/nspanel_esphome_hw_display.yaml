@@ -1,0 +1,826 @@
+#####################################################################################################
+##### NSPANEL ESPHOME created by Blackymas - https://github.com/Blackymas/NSPanel_HA_Blueprint  #####
+##### ESPHOME CORE - HARDWARE - Display                                                         #####
+##### PLEASE only make changes if it is necessary and also the required knowledge is available. #####
+##### For normal use with the Blueprint, no changes are necessary.                              #####
+#####################################################################################################
+---
+substitutions:
+  ##############################
+  ## Change only in your      ##
+  ## local yaml substitutions ##
+  ##############################
+  BAUD_RATE: '115200'
+  BOOT_STEP_HW_DISPLAY: '5'
+  bytes_per_char: "1"
+  COLOR_BLUE_INDIGO: '10597'
+  COLOR_CYAN_BRIGHT: '7519'
+  COLOR_GRAY_MOSS: '33808'
+  COLOR_RED_PRIMARY: '63488'
+  COLOR_WHITE: '65535'
+  COLOR_YELLOW_GOLDEN: '64992'
+  DISPLAY_CHARSET_CJK: '2'
+  DISPLAY_CHARSET_INTERNATIONAL: '1'
+  GPIO_DISPLAY_NEXTION_RX_PIN: 17
+  GPIO_DISPLAY_NEXTION_TX_PIN: 16
+  GPIO_DISPLAY_POWER_PIN:
+    number: 4
+    inverted: true
+  TAG_HW_DISPLAY: nspanel.hw.display
+
+binary_sensor:
+  - id: nextion_init  # Delays initial info from HA to the display
+    name: Nextion display
+    platform: template
+    device_class: connectivity
+    entity_category: diagnostic
+    icon: mdi:tablet-dashboard
+    lambda: |-
+      return is_device_ready_for_tasks();
+    on_release:
+      then:
+        - lambda: clear_system_flag(NSPanelFlag::NEXTION_READY);
+
+display:
+  - id: disp1
+    platform: nextion
+    update_interval: never
+    uart_id: tf_uart
+    on_setup:
+      then:
+        - lambda: |-
+            current_page_id = ${PAGE_BOOT_ID};
+            wakeup_page_id = get_page_id(wakeup_page_name->state.c_str());
+        - script.stop: wait_for_display
+        - lambda: |-
+            ESP_LOGI("${TAG_HW_DISPLAY}", "Nextion setup triggered");
+            set_system_flag(NSPanelFlag::NEXTION_READY);
+            nextion_init->publish_state(true);
+
+    on_page:
+      then:
+        - lambda: |-
+            ESP_LOGI("${TAG_HW_DISPLAY}", "Page changed: '%s'->'%s'", page_names[current_page_id], page_names[x]);
+            ESP_LOGW_IF("${TAG_HW_DISPLAY}", (x == current_page_id), "Same page");
+            page_change->execute(x);
+
+    on_touch:
+      then:
+        - script.execute: timer_reset_all
+
+esphome:
+  platformio_options:
+    build_flags:
+      - -D NSPANEL_HA_BLUEPRINT_HW_DISPLAY
+
+globals:
+  - id: mui_bytes_per_char
+    type: uint8_t
+    restore_value: true
+    initial_value: ${bytes_per_char}
+
+json:  # Can be replaced by web_server
+
+number:
+  - id: display_brightness  # Screen brightness when in use
+    name: Display Brightness
+    platform: template
+    entity_category: config
+    unit_of_measurement: '%'
+    min_value: 1
+    max_value: 100
+    initial_value: 100
+    step: 1
+    restore_value: true
+    optimistic: true
+    update_interval: never
+    on_value:
+      then:
+        - lambda: |-
+            disp1->send_command_printf("brightness=%i", int(x));
+        - if:
+            condition:
+              - lambda: return current_page_id != ${PAGE_SCREENSAVER_ID};
+            then:
+              - script.execute:
+                  id: set_brightness
+                  brightness: !lambda return x;
+
+  - id: display_dim_brightness  # Screen brightness when dimmed down
+    name: Display Brightness Dimdown
+    platform: template
+    entity_category: config
+    unit_of_measurement: '%'
+    min_value: 1
+    max_value: 100
+    initial_value: 25
+    step: 1
+    restore_value: true
+    optimistic: true
+    on_value:
+      then:
+        - lambda: |-
+            disp1->send_command_printf("brightness_dim=%i", int(x));
+        - if:
+            condition:
+              - lambda: return current_page_id != ${PAGE_SCREENSAVER_ID};
+              - lambda: return (int(current_brightness->state) != int(x));
+            then:
+              - script.execute:
+                  id: set_brightness
+                  brightness: !lambda return x;
+
+script:
+  - id: !extend action_component_val
+    then:
+      - lambda: |-
+          if (page == "mem" and component == "bytes_per_char")
+            id(mui_bytes_per_char) = static_cast<uint8_t>(val);
+
+  - id: !extend boot_preparation
+    then:
+      - lambda: setup_components_visibility();
+
+  - id: !extend dump_config
+    then:
+      # Report UART
+      - lambda: |-
+          ESP_LOGCONFIG("${TAG_HW_DISPLAY}", "UART:");
+          ESP_LOGCONFIG("${TAG_HW_DISPLAY}", "  Baud rate:   %" PRIu32 " bps", tf_uart->get_baud_rate());
+          ESP_LOGCONFIG("${TAG_HW_DISPLAY}", "  Queue size:  %d", tf_uart->available());
+
+      # Report Nextion status
+      - lambda: |-
+          ESP_LOGCONFIG("${TAG_HW_DISPLAY}", "Nextion:");
+          ESP_LOGCONFIG("${TAG_HW_DISPLAY}", "  Queue size:  %d", disp1->queue_size());
+          if (disp1->is_setup())
+            ESP_LOGCONFIG("${TAG_HW_DISPLAY}", "  Is setup:    True");
+          else {
+            ESP_LOGW("${TAG_HW_DISPLAY}", "  Is setup:    False");
+            ESP_LOGW("${TAG_HW_DISPLAY}", "  Is detected: %s", YESNO(disp1->is_detected()));
+            //exit_reparse->execute();
+          }
+          if (nextion_init->state) {
+            ESP_LOGCONFIG("${TAG_HW_DISPLAY}", "  Init:        True");
+          } else
+            ESP_LOGW("${TAG_HW_DISPLAY}", "  Init:        False");
+          if (version_tft->state.empty())
+            ESP_LOGW("${TAG_HW_DISPLAY}", "  TFT:         UNKNOWN");
+          else
+            ESP_LOGCONFIG("${TAG_HW_DISPLAY}", "  TFT:         %s", version_tft->state.c_str());
+
+      # Report wake-up page
+      - lambda: |-
+          ESP_LOGCONFIG("${TAG_HW_DISPLAY}", "Wake-up page: %s", page_names[wakeup_page_id]);
+
+  - id: event_from_display
+    mode: restart
+    parameters:
+      json: JsonDocument
+      page: string
+      event: string
+    then:
+      # Extended by:
+      #   - nspanel_esphome_standard_page_alarm.yaml
+      #   - nspanel_esphome_standard_page_climate.yaml
+      #   - nspanel_esphome_standard_page_cover.yaml
+      #   - nspanel_esphome_standard_page_fan.yaml
+      #   - nspanel_esphome_standard_page_keyb_num.yaml
+      #   - nspanel_esphome_standard_page_light.yaml
+      #   - nspanel_esphome_standard_page_media_player.yaml
+      #   - nspanel_esphome_standard_versioning.yaml
+      - lambda: |-
+          // Start extracting info from event's json
+          ESP_LOGV("${TAG_HW_DISPLAY}", "New event from display:");
+          ESP_LOGV("${TAG_HW_DISPLAY}", "  page: %S", page.c_str());
+          ESP_LOGV("${TAG_HW_DISPLAY}", "  event: %S", event.c_str());
+          const std::string component = json["component"].isNull() ? "" : json["component"].as<std::string>();
+          ESP_LOGV("${TAG_HW_DISPLAY}", "  component: %S", component.c_str());
+          const std::string value = json["value"].isNull() ? "" : json["value"].as<std::string>();
+          ESP_LOGV("${TAG_HW_DISPLAY}", "  value: %S", value.c_str());
+
+          // Handle special events
+          if (event == "params") {
+            if (json["display_mode"].isNull() || json["charset"].isNull() || json["version"].isNull()) {
+              ESP_LOGW("${TAG_HW_DISPLAY}", "Missing display keys");
+              clear_system_flag(NSPanelFlag::DISPLAY_SETTINGS_RECEIVED);
+              return;
+            }
+
+            // Parse display parameters
+            display_mode = json["display_mode"].as<uint8_t>();
+            display_charset = json["charset"].as<uint8_t>();
+            version_tft->publish_state(json["version"].as<std::string>());
+
+            ESP_LOGI("${TAG_HW_DISPLAY}", "Display params:");
+            ESP_LOGI("${TAG_HW_DISPLAY}", "  Mode:        %" PRIu8, display_mode);
+            ESP_LOGI("${TAG_HW_DISPLAY}", "  Charset:     %" PRIu8, display_charset);
+            ESP_LOGI("${TAG_HW_DISPLAY}", "  TFT version: v%s", version_tft->state.c_str());
+
+            set_system_flag(NSPanelFlag::DISPLAY_SETTINGS_RECEIVED);
+            id(disp1).send_command("tm_esphome.en=0");
+            return;
+          }
+
+          // Send event to Home Assistant
+          esphome::api::CustomAPIDevice ha_event;
+
+          if (event == "short_click" || event == "long_click") {
+            if (component.empty()) {
+              ESP_LOGW("${TAG_HW_DISPLAY}", "Click event missing component");
+              return;
+            }
+
+            // Button click event
+            ESP_LOGD("${TAG_HW_DISPLAY}", "Send click event to Home Assistant");
+            ha_event.fire_homeassistant_event("${EVENT_NAME}", {
+              {"device_name", id(device_name).state},
+              {"esphome_version", "${version}"},
+              {"type", "button_click"},
+              {"page", page.c_str()},
+              {"component", component.c_str()},
+              {"command", event.c_str()}
+            });
+            ESP_LOGD("${TAG_HW_DISPLAY}", "Home Assistant click event sent");
+          } else if (page != "home" and page != "light") {
+            // Generic event
+            ESP_LOGD("${TAG_HW_DISPLAY}", "Send generic event to Home Assistant");
+            ha_event.fire_homeassistant_event("${EVENT_NAME}", {
+              {"device_name", id(device_name).state},
+              {"esphome_version", "${version}"},
+              {"type", "button_click"},
+              {"page", page.c_str()},
+              {"component", component.c_str()},
+              {"event", event.c_str()},
+              {"value", value.c_str()},
+              {"entity", id(detailed_entity).state.c_str()}
+            });
+            ESP_LOGD("${TAG_HW_DISPLAY}", "Home Assistant generic event sent");
+          }
+
+  - id: goto_page
+    mode: restart
+    parameters:
+      page_id: uint8_t
+    then:
+      - lambda: |-
+          ESP_LOGV("${TAG_HW_DISPLAY}", "Go to page '%s' (id: %" PRIu8 ")", page_names[page_id], page_id);
+          if (page_id == current_page_id) {
+            ESP_LOGW("${TAG_HW_DISPLAY}", "Already the current page");
+            return;
+          }
+          ESP_LOGVV("${TAG_HW_DISPLAY}", "Send page id '%" PRIu8 "' to Nextion", page_id);
+          disp1->goto_page(page_id);
+
+  - id: page_change
+    mode: restart
+    parameters:
+      new_page_id: uint8_t
+    then:
+      # Report new page to logs
+      - lambda: |-
+          ESP_LOGV("${TAG_HW_DISPLAY}", "New page: %s", page_names[new_page_id]);
+          current_page->publish_state(page_names[new_page_id]);
+          if (current_page_id != new_page_id) {
+            last_page_id = current_page_id;
+            current_page_id = new_page_id;
+          }
+
+      # Stop previous constructors
+      - lambda: |-
+          ESP_LOGV("${TAG_HW_DISPLAY}", "Stop previous constructors");
+          stop_page_constructors->execute();
+
+      # Reset globals
+      - lambda: |-
+          ESP_LOGV("${TAG_HW_DISPLAY}", "Reset globals");
+          if (new_page_id != ${PAGE_ALARM_ID} &&
+              new_page_id != ${PAGE_CLIMATE_ID} &&
+              new_page_id != ${PAGE_COVER_ID} &&
+              new_page_id != ${PAGE_FAN_ID} &&
+              new_page_id != ${PAGE_LIGHT_ID} &&
+              new_page_id != ${PAGE_MEDIA_PLAYER_ID} &&
+              new_page_id != ${PAGE_CONFIRM_ID} &&
+              new_page_id != ${PAGE_KEYB_NUM_ID}) {
+              detailed_entity->publish_state("");
+              disp1->send_command("back_page_id=1");
+          }
+          if (new_page_id != ${PAGE_MEDIA_PLAYER_ID}) {
+            last_volume_level = 0;
+            last_media_duration = 0;
+            last_media_position = 0;
+          }
+
+      # Report detailed entity
+      - if:
+          condition:
+            - lambda: return !detailed_entity->state.empty();
+          then:
+            - lambda: |-
+                ESP_LOGD("${TAG_HW_DISPLAY}", "Entity shown: %s", detailed_entity->state.c_str());
+
+      # Update buttons bars on screen
+      - lambda: |-
+          ESP_LOGV("${TAG_HW_DISPLAY}", "Update buttons bars on screen");
+      - script.execute:
+          id: refresh_hardware_buttons_bars
+          button_mask: 3
+
+      # Reset timers
+      - if:
+          condition:
+            - lambda: return current_page_id != ${PAGE_SCREENSAVER_ID};
+          then:
+            - delay: ${DELAY_DEFAULT}ms
+            - lambda: |-
+                ESP_LOGV("${TAG_HW_DISPLAY}", "Reset timers");
+            - script.execute: timer_reset_all
+
+      # Wait for other constructors to stop before telling the blueprint about a new page
+      - script.wait: stop_page_constructors
+
+      # Update component's visibility from memory
+      - lambda: |-
+          ESP_LOGV("${TAG_HW_DISPLAY}", "Update component's visibility from memory");
+          std::vector<ComponentVisibility*> components_visibility = list_components_visibility_by_page(current_page_id);
+          for (ComponentVisibility* component_visibility : components_visibility) {
+            if (component_visibility->visible) {
+              disp1->show_component(component_visibility->component);
+            } else {
+              disp1->hide_component(component_visibility->component);
+            }
+          }
+
+      # Report new page to Blueprint
+      - if:
+          condition:
+            - lambda: return last_page_id != UINT8_MAX;
+            - lambda: return last_page_id != new_page_id;
+          then:
+            - delay: ${DELAY_DEFAULT}ms
+            - lambda: |-
+                ESP_LOGV("${TAG_HW_DISPLAY}", "Report new page to Blueprint");
+            - homeassistant.event:
+                event: ${EVENT_NAME}
+                data:
+                  device_name: !lambda return device_name->state.c_str();
+                  esphome_version: ${version}
+                  type: page_changed
+                  page: !lambda return page_names[new_page_id];
+                  entity: !lambda return detailed_entity->state.c_str();
+
+      # Call page constructor
+      - delay: ${DELAY_DEFAULT}ms
+      - lambda: |-
+          ESP_LOGV("${TAG_HW_DISPLAY}", "Call page constructor");
+      - lambda: |-
+          if (current_page->state == "blank") page_blank->execute();
+          else if (current_page->state == "buttonpage01") page_buttonpage01->execute();
+          else if (current_page->state == "buttonpage02") page_buttonpage02->execute();
+          else if (current_page->state == "buttonpage03") page_buttonpage03->execute();
+          else if (current_page->state == "buttonpage04") page_buttonpage04->execute();
+          else if (current_page->state == "qrcode") page_qrcode->execute();
+          else if (current_page->state == "utilities") page_utilities->execute();
+          else if (current_page->state == "weather01") page_weather01->execute();
+          else if (current_page->state == "weather02") page_weather02->execute();
+          else if (current_page->state == "weather03") page_weather03->execute();
+          else if (current_page->state == "weather04") page_weather04->execute();
+          else if (current_page->state == "weather05") page_weather05->execute();
+
+      # Update buttons bars on screen
+      - script.execute:
+          id: refresh_hardware_buttons_bars_with_delay
+          button_mask: 3
+          delay: 1000
+
+  - id: set_baud_rate
+    mode: restart
+    parameters:
+      target_baud_rate: uint32_t
+      definitive: bool
+    then:
+      - lambda: |-
+          if (are_any_system_flags_set({NSPanelFlag::OTA_IN_PROGRESS, NSPanelFlag::SAFE_MODE_ACTIVE}) or
+              disp1->is_updating()) {  // I cannot use NSPanelFlag::TFT_UPLOAD_ACTIVE as baud rate changes with that
+            ESP_LOGW("${TAG_BASE}", "Cannot change baud rate now as the system is busy");
+            set_baud_rate->stop();
+            return;
+          }
+          if (!isnan(target_baud_rate))
+            set_system_flag(NSPanelFlag::BAUD_RATE_SET);
+      - if:
+          condition:
+            - lambda: return (tf_uart->get_baud_rate() != target_baud_rate);
+          then:
+            - lambda: |-
+                ESP_LOGD("${TAG_HW_DISPLAY}", "Baud rate changing from %" PRIu32 " to %" PRIu32 " bps", tf_uart->get_baud_rate(), target_baud_rate);
+                ESP_LOGV("${TAG_HW_DISPLAY}", "Flush UART");
+            - script.execute: wait_for_uart_available
+            - script.wait: wait_for_uart_available
+            - lambda: |-
+                ESP_LOGV("${TAG_HW_DISPLAY}", "Sending instruction '%s=%" PRIu32 "' to Nextion", definitive ? "bauds" : "baud", target_baud_rate);
+                disp1->send_command_printf("%s=%" PRIu32, definitive ? "bauds" : "baud", target_baud_rate);
+                ESP_LOGV("${TAG_HW_DISPLAY}", "Flush UART");
+            - script.execute: wait_for_uart_available
+            - script.wait: wait_for_uart_available
+            - lambda: |-
+                ESP_LOGV("${TAG_HW_DISPLAY}", "Set ESPHome new baud rate to %" PRIu32 " bps", target_baud_rate);
+                tf_uart->set_baud_rate(target_baud_rate);
+                tf_uart->load_settings();
+                ESP_LOGV("${TAG_HW_DISPLAY}", "Current baud rate: %" PRIu32 " bps", tf_uart->get_baud_rate());
+
+  - id: set_brightness
+    mode: single
+    parameters:
+      brightness: uint8_t
+    then:
+      - if:
+          condition:
+            - lambda: return brightness <= 100;
+            - lambda: return int(current_brightness->state) != brightness;
+            - lambda: return is_device_ready_for_tasks();
+          then:
+            - lambda: |-
+                disp1->set_backlight_brightness(brightness / 100.0f);
+                current_brightness->update();
+
+  - id: set_component_font_color
+    mode: single
+    parameters:
+      component_id: string
+      color: uint16_t
+    then:
+      - lambda: disp1->set_component_font_color(component_id.c_str(), color);
+
+  - id: !extend stop_all
+    then:
+      - script.execute: stop_page_constructors
+      - script.stop: event_from_display
+      - script.stop: goto_page
+      - script.stop: page_change
+      - script.stop: set_baud_rate
+      - script.stop: set_brightness
+      - script.stop: set_component_font_color
+      - script.stop: timer_dim
+      - script.stop: timer_page
+      - script.stop: timer_reset_all
+      - script.stop: wait_for_uart_available
+      - script.stop: wait_for_version_tft
+
+  - id: stop_page_constructors
+    mode: single
+    then:
+      # Page home is an exception, as it can be constructed in the background
+      - script.stop: page_blank
+      - script.stop: page_entitypage
+      - script.stop: page_entitypage01
+      - script.stop: page_entitypage02
+      - script.stop: page_entitypage03
+      - script.stop: page_entitypage04
+      - script.stop: page_qrcode
+      - script.stop: page_utilities
+      - script.stop: page_weather
+      - script.stop: page_weather01
+      - script.stop: page_weather02
+      - script.stop: page_weather03
+      - script.stop: page_weather04
+
+  ###### Timers ######
+  - id: timer_dim        # Handles the brightness dimming after a timeout
+    mode: restart
+    then:
+      - lambda: |-
+          if (
+                current_brightness->state <= display_dim_brightness->state and
+                current_page_id != ${PAGE_SCREENSAVER_ID} and
+                current_page_id != ${PAGE_BOOT_ID}
+              ) {
+            ESP_LOGD("${TAG_HW_DISPLAY}", "Waking up on page: %s", page_names[current_page_id]);
+            set_brightness->execute(display_brightness->state);
+          }
+
+      - delay: !lambda return (int(timeout_dim->state) *1000);
+      - lambda: |-
+          if (
+                timeout_dim->state >= 1 and
+                current_page_id != ${PAGE_SCREENSAVER_ID} and
+                current_page_id != ${PAGE_BOOT_ID}
+              ) {
+            set_brightness->execute(display_dim_brightness->state);
+          }
+
+  - id: timer_page       # Handles the fallback to home page after a timeout
+    mode: restart
+    then:
+      - if:
+          condition:
+            - lambda: |-
+                return (timeout_page->state >= 1 and
+                        current_page->state != "boot" and
+                        current_page->state != "confirm" and
+                        current_page->state != "home" and
+                        current_page->state != "notification" and
+                        current_page->state != "screensaver");
+          then:
+            - delay: !lambda return (int(timeout_page->state) *1000);
+            - lambda: |-
+                ESP_LOGV("${TAG_HW_DISPLAY}", "Timed out on page: %s", page_names[current_page_id]);
+                if (timeout_page->state >= 1 and
+                    current_page->state != "boot" and
+                    current_page->state != "confirm" and
+                    current_page->state != "home" and
+                    current_page->state != "notification" and
+                    current_page->state != "screensaver")
+                  {
+                    ESP_LOGD("${TAG_HW_DISPLAY}", "Fallback to page Home");
+                    goto_page->execute(${PAGE_HOME_ID});
+                  }
+
+  - id: timer_reset_all  # Global timer reset - Triggered with a touch on the screen
+    mode: single
+    then:
+      - lambda: ESP_LOGV("${TAG_HW_DISPLAY}", "Reset timers");
+      - script.execute: timer_page
+      - script.execute: timer_dim
+      # Extended by:
+      #  - page_screensaver
+
+  - id: wait_for_display
+    mode: single
+    then:
+      - if:
+          condition:
+            - lambda: return !disp1->is_setup();
+          then:
+            - switch.turn_on: screen_power
+            - delay: 19s
+            - while:
+                condition:
+                  - lambda: return !disp1->is_setup();
+                then:
+                  - lambda: |-
+                      ESP_LOGE("${TAG_HW_DISPLAY}", "Display is not set. Restarting.");
+                  - switch.turn_off: screen_power
+                  - delay: 2s
+                  - switch.turn_on: screen_power
+                  - delay: 7s
+                  - if:
+                      condition:
+                        - lambda: return !disp1->is_setup();
+                      then:
+                        - lambda: |-
+                            ESP_LOGE("${TAG_HW_DISPLAY}", "Display is not set. Scanning baud rates.");
+                        - select.next: baud_rate
+                        - delay: 19s
+
+  - id: wait_for_uart_available
+    mode: single
+    then:
+      - repeat:
+          count: 60  # seconds
+          then:
+            - if:
+                condition:
+                  - lambda: return (tf_uart->available() < 1);
+                then:
+                  - script.stop: wait_for_uart_available
+            - if:
+                condition:
+                  - lambda: return (iteration % 5 == 1);  // Log every 5 seconds (at iterations 1, 6, 11, etc.)
+                then:
+                  - script.execute:
+                      id: boot_log
+                      category: "Boot"
+                      log_message: "Waiting for UART empty queue..."
+            - delay: 1s
+
+  - id: wait_for_version_tft
+    mode: single
+    then:
+      - script.execute:
+          id: boot_log
+          category: Boot
+          log_message: Check TFT version
+      - repeat:
+          count: 60  # seconds
+          then:
+            - if:
+                condition:
+                  - lambda: return not version_tft->state.empty();
+                then:
+                  - script.stop: wait_for_version_tft
+            - if:
+                condition:
+                  - lambda: return (iteration % 5 == 0);  // Log every 5 seconds
+                then:
+                  - lambda: |-
+                      ESP_LOGV("${TAG_HW_DISPLAY}", "Iteration: %i/60", iteration);
+                  - script.execute:
+                      id: boot_log
+                      category: Boot
+                      log_message: Waiting for TFT version
+            - delay: 1s
+
+  - id: !extend watchdog_round
+    then:
+      - script.execute: wait_for_display
+
+select:
+  - id: baud_rate
+    name: Baud rate
+    platform: template
+    options:
+      - "2400"
+      - "4800"
+      - "9600"
+      - "19200"
+      - "31250"
+      - "38400"
+      - "57600"
+      - "115200"
+      - "230400"
+      - "250000"
+      - "256000"
+      - "512000"
+      - "921600"
+    initial_option: "115200"
+    optimistic: true
+    restore_value: true
+    internal: false
+    entity_category: config
+    disabled_by_default: true
+    icon: mdi:swap-horizontal
+    update_interval: never
+    on_value:
+      then:
+        - lambda: |-
+            if (are_any_system_flags_set({NSPanelFlag::OTA_IN_PROGRESS,
+                                          NSPanelFlag::SAFE_MODE_ACTIVE,
+                                          NSPanelFlag::TFT_UPLOAD_ACTIVE})) {
+              ESP_LOGW("${TAG_BASE}", "Cannot change baud rate as the system is busy");
+              return;
+            }
+            set_baud_rate->execute(std::stoi(x), true);
+
+  - id: wakeup_page_name
+    name: Wake-up page
+    platform: template
+    options:
+      - buttonpage01
+      - buttonpage02
+      - buttonpage03
+      - buttonpage04
+      - climate
+      - entitypage01
+      - entitypage02
+      - entitypage03
+      - entitypage04
+      - home
+      - qrcode
+      - utilities
+    initial_option: home
+    optimistic: true
+    restore_value: true
+    internal: false
+    entity_category: config
+    icon: mdi:page-next-outline
+    update_interval: never
+    on_value:
+      then:
+        - lambda: wakeup_page_id = get_page_id(x.c_str());
+        - script.execute: wait_to_be_ready
+        - script.wait: wait_to_be_ready
+        # Extended by:
+        # - page_screensaver
+
+sensor:
+  - id: brightslider  # Display Brightness GET VALUE FROM NSPanel SLIDER
+    name: brightness Slider
+    platform: nextion
+    variable_name: brightslider
+    internal: true
+    on_value:
+      then:
+        - if:
+            condition:
+              - lambda: return (int(display_brightness->state) != int(x));
+            then:
+              - number.set:
+                  id: display_brightness
+                  value: !lambda return int(x);
+
+  - id: current_brightness  # Display Brightness - Current value (%)
+    name: Display Current brightness
+    platform: nextion
+    variable_name: dim
+    precision: 0
+    accuracy_decimals: 0
+    unit_of_measurement: "%"
+    icon: mdi:brightness-percent
+    internal: false
+    disabled_by_default: false
+
+  - id: dimslider  # Display DIM Brightness GET VALUE FROM NSPanel SLIDER
+    name: dim brightness slider
+    platform: nextion
+    variable_name: dimslider
+    internal: true
+    on_value:
+      then:
+        - if:
+            condition:
+              - lambda: return is_device_ready_for_tasks();
+              - lambda: return (int(display_dim_brightness->state) != int(x));
+            then:
+              - number.set:
+                  id: display_dim_brightness
+                  value: !lambda return int(x);
+
+switch:
+  - id: screen_power  # Controls the display's power source
+    name: Nextion display - Power
+    platform: gpio
+    entity_category: diagnostic
+    pin: ${GPIO_DISPLAY_POWER_PIN}
+    restore_mode: ALWAYS_ON
+    disabled_by_default: true
+    internal: true
+    on_turn_off:
+      then:
+        - binary_sensor.template.publish:
+            id: nextion_init
+            state: false
+
+text_sensor:
+  - id: current_page  # Current page name
+    name: Current Page
+    platform: template
+    icon: mdi:tablet-dashboard
+    internal: false
+    disabled_by_default: false
+    update_interval: never
+
+  - id: detailed_entity  # Entity Id of the entity displayed on the detailed pages
+    name: Detailed Entity
+    platform: template
+    icon: mdi:tablet-dashboard
+    internal: false
+    disabled_by_default: false
+    update_interval: never
+
+  - id: disp1_local_event
+    name: NSPanel local event
+    platform: nextion
+    nextion_id: disp1
+    component_name: localevent
+    internal: true
+    update_interval: never
+    on_value:
+      then:
+        - script.execute: dump_config_hw_memory
+        - script.wait: dump_config_hw_memory
+        - lambda: |-
+            static JsonDocument json;
+            static std::string page;
+            static std::string event;
+            DeserializationError error = deserializeJson(json, x.c_str());
+            if (error) {
+                ESP_LOGE("${TAG_HW_DISPLAY}", "Error parsing json: %s", x.c_str());
+                ESP_LOGE("${TAG_HW_DISPLAY}", "Error: %s", error.c_str());
+                return;
+            }
+
+            // Extract required fields with validation
+            if (json["page"].isNull()) {
+              ESP_LOGW("${TAG_HW_DISPLAY}", "Missing 'page' key");
+              return;
+            }
+            page = json["page"].as<std::string>();
+
+            if (json["event"].isNull()) {
+              ESP_LOGD("${TAG_HW_DISPLAY}", "Missing 'event' key");
+              // return;
+            }
+            event = json["event"].isNull() ? "" : json["event"].as<std::string>();
+
+            event_from_display->execute(json, page.c_str(), event.c_str());
+
+  - id: version_tft
+    name: Version TFT
+    platform: template
+    entity_category: diagnostic
+    icon: mdi:tag-text-outline
+    internal: false
+    update_interval: never
+    on_value:
+      then:
+        - script.execute:
+            id: check_versions
+            reset_flag: !lambda return (x != "${version}");
+
+uart:
+  - id: tf_uart  # UART for Nextion display
+    tx_pin: ${GPIO_DISPLAY_NEXTION_TX_PIN}
+    rx_pin: ${GPIO_DISPLAY_NEXTION_RX_PIN}
+    baud_rate: ${BAUD_RATE}
+...
