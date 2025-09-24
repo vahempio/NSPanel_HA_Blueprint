@@ -48,17 +48,13 @@ binary_sensor:
           - script.execute: button_left_press_short
           - if:
               condition:
-                or:
-                  - lambda: return (id(relay_settings) & RelaySettings::Relay1_Local);
-                  - and:
-                      - lambda: return (id(relay_settings) & RelaySettings::Relay1_Fallback);
-                      - or:
-                          - not:
-                              - api.connected:
-                          - not:
-                              - wifi.connected:
+                lambda: 'return id(ns_cover).current_operation == CoverOperation::COVER_OPERATION_IDLE;'
               then:
-                - switch.toggle: relay_1
+                - cover.open: ns_cover
+                - logger.log: "Open cover"
+              else:
+                - cover.stop: ns_cover
+                - logger.log: "Stop cover"
           - script.execute:
               id: ha_button
               page: !lambda return page_names[current_page_id];
@@ -90,18 +86,14 @@ binary_sensor:
           - script.execute: button_right_press_short
           - if:
               condition:
-                or:
-                  - lambda: return (id(relay_settings) & RelaySettings::Relay2_Local);
-                  - and:
-                      - lambda: return (id(relay_settings) & RelaySettings::Relay2_Fallback);
-                      - or:
-                          - not:
-                              - api.connected:
-                          - not:
-                              - wifi.connected:
+                lambda: 'return id(ns_cover).current_operation == CoverOperation::COVER_OPERATION_IDLE;'
               then:
-                - switch.toggle: relay_2
-          - script.execute:
+                - cover.close: ns_cover
+                - logger.log: "Close cover"
+              else:
+                - cover.stop: ns_cover
+                - logger.log: "Stop cover"
+         - script.execute:
               id: ha_button
               page: !lambda return page_names[current_page_id];
               component: "hw_bt_right"
