@@ -93,7 +93,7 @@ binary_sensor:
               else:
                 - cover.stop: ns_cover
                 - logger.log: "Stop cover"
-         - script.execute:
+          - script.execute:
               id: ha_button
               page: !lambda return page_names[current_page_id];
               component: "hw_bt_right"
