@@ -1,66 +1,38 @@
-# v4.3.33 - Memory Optimization Focus for Boot Loop Resolution
+# v4.3.44 - Cover Add-on Fix
 
 ## Summary
 
-This release continues aggressive memory optimization efforts aimed at resolving boot loop issues for all configurations,
-including support for Bluetooth add-ons. Additional bug fixes improve overall system stability.
+This release fixes a critical issue with the cover add-on where opening and closing operations
+were both incorrectly calling the closing routine.
 
-## Breaking Changes
+## Critical Fix
 
-### Notification Text Sensors Removed
+### Cover Add-on Open/Close Actions Corrected
 
-**Two notification-related text sensors have been removed** as part of memory optimization efforts:
-- **Notification Label sensor** (page title)
-- **Notification Message sensor** (page body)
+**Fixed cover add-on action routing** - resolved issue where both opening and closing operations
+were incorrectly calling the closing routine instead of their respective routines.
 
-**Why removed:** These sensors were redundant - they reflected back to Home Assistant the same information that was just sent via action calls from Home Assistant.
+**Issue details:**
+- Cover add-on opening action was calling the closing routine (script)
+- Cover add-on closing action was correctly calling the closing routine
+- Opening operations would execute closing behavior instead
+- Affected all users using the cover add-on
 
-**Impact:** Most users won't notice any difference since these sensors provided duplicate information.
+**Fix implemented:**
+- Open action now correctly calls the opening routine (script)
+- Close action continues to correctly call the closing routine
+- Both operations now execute their intended behavior
 
-**Need these sensors?** If your automations rely on these sensors, please report this as an issue on GitHub. We're happy to help with either:
-- Workarounds that don't require the sensors
-- Adding them back as optional customizations
-
-**For current supported actions and API capabilities, consult the [API documentation](docs/api.md).**
-
-## Key Improvements
-
-### Aggressive Memory Optimization
-
-**Focused memory reduction effort** targeting complete boot loop resolution across all configurations, including support for memory-intensive add-ons like Bluetooth.
-
-**Optimization goals:**
-- **Universal boot reliability** - resolve boot loops for all users
-- **Bluetooth compatibility** - enable stable operation with Bluetooth add-ons
-- **Maximum memory efficiency** - aggressive reduction of non-essential components
-
-**Progress status:** Significant memory freed up, with more optimization work planned for upcoming releases.
-
-### Additional Bug Fixes
-
-**Resolved several reported issues** continuing the stability improvement efforts from recent releases.
-
-**Bug fixes include:**
-- Various edge case handling improvements
-- Enhanced system reliability
-- Better error recovery mechanisms
-
-## Current Status & Goals
-
-**Primary objective:** Enable stable operation with Bluetooth add-ons through continued memory optimization.
-
-**Ongoing work:** Additional memory optimizations planned for upcoming releases to achieve full Bluetooth compatibility.
-
-**If you're currently stable - no immediate action needed.** These optimizations benefit all users by improving boot reliability and system stability.
+**Result:** Cover add-on now operates correctly with opening and closing actions
+executing their proper routines.
 
 ## Technical Details
 
-This release represents a focused approach to memory management,
-prioritizing essential functionality while aggressively removing redundant or non-critical components.
-The goal is achieving reliable operation across all add-on configurations, particularly memory-intensive ones like Bluetooth.
+This fix corrects the action routing in the cover add-on, ensuring that opening and closing
+operations call their respective scripts rather than both calling the same closing routine.
 
-**Result:** Significant memory savings contributing toward universal boot reliability, with continued optimization work planned to achieve full add-on compatibility.
+**Result:** Proper cover add-on operation with correctly routed opening and closing actions.
 
 ---
 
-*Continued aggressive memory optimization targeting universal boot reliability and Bluetooth add-on support.*
+*Critical fix for cover add-on action routing.*

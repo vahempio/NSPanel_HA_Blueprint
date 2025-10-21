@@ -65,6 +65,11 @@ esphome:
       - -D NSPANEL_HA_BLUEPRINT_PAGE_CLIMATE
 
 globals:
+  - id: is_embedded_thermostat  # Is embedded thermostat set as main climate entity?
+    type: bool
+    restore_value: true
+    initial_value: 'false'
+
   - id: mui_unavailable
     type: std::string
     restore_value: true
@@ -81,46 +86,62 @@ script:
             }
           }
 
-  - id: !extend event_from_display  # Defined by nspanel_esphome_core_hw_display.yaml
+  - id: !extend action_component_val
     then:
       - lambda: |-
-          if (page == "climate") {
-            if (json["key"].isNull() || json["value"].isNull()) {
-              ESP_LOGW("${TAG_PAGE_CLIMATE}", "Missing climate fields 'key' or 'value'");
+          if (page == "mem") {
+            if (component == "embedded_climate") {
+              id(is_embedded_thermostat) = val;
+            }
+          }
+
+  - id: change_climate_state
+    mode: restart
+    parameters:
+      embedded: bool
+      key: string
+      value: string
+    then:
+      - lambda: |-
+          if (!embedded and is_device_ready_for_tasks()) {
+            if (key == "temperature" or key == "target_temp_high" or key == "target_temp_low") {
+              fire_ha_event("action_call", {
+                {"action", "climate.set_temperature"},
+                {"key", key.c_str()},
+                {"value", to_string(stof(value) / 10)},
+                {"entity", detailed_entity->state.c_str()}
+              });
+            } else if (key == "hvac_mode") {
+              fire_ha_event("action_call", {
+                {"action", "climate.set_hvac_mode"},
+                {"key", "hvac_mode"},
+                {"value", value.c_str()},
+                {"entity", detailed_entity->state.c_str()}
+              });
+            }
+          }
+
+  - id: !extend event_from_display  # Defined by hw_display
+    then:
+      - lambda: |-
+          if (params[0] == "climate") {
+              // CSV Format: climate,key,<value>,...
+              // params[0]=page, params[1]=key, params[2]=value,...
+
+            if (params_count != 4) {
+              ESP_LOGW("${TAG_PAGE_CLIMATE}", "Bad params");
               return;
-            } // endif missing fields
-
-            const std::string key = json["key"].as<std::string>();
-            const std::string value = json["value"].as<std::string>();
-
-
-            if (!json["embedded"].isNull()) {
-              const uint8_t embedded = json["embedded"].as<uint8_t>();
-              change_climate_state->execute(embedded == 1, key.c_str(), value.c_str());
             }
 
-            const std::string component = json["component"].isNull() ? "" : json["component"].as<std::string>();
-            esphome::api::CustomAPIDevice ha_event;
-            // Send event to Home Assistant
-            ha_event.fire_homeassistant_event("esphome.nspanel_ha_blueprint", {
-              {"device_name", device_name->state.c_str()},
-              {"esphome_version", "${version}"},
-              {"type", "generic"},
-              {"page", page.c_str()},
-              {"component", component.c_str()},
-              {"event", event.c_str()},
-              {"value", value.c_str()},
-              {"entity", detailed_entity->state.c_str()}
-            });
+            const std::string& key = params[1];
+            const std::string& value = params[2];
+            const std::string& embedded = params[3];
+            change_climate_state->execute(embedded == "1", key.c_str(), value.c_str());
           }
 
   - id: !extend page_change
     then:
-      - if:
-          condition:
-            - lambda: return new_page_id == ${PAGE_CLIMATE_ID};
-          then:
-            - script.execute: page_climate
+      - lambda: if (new_page_id == ${PAGE_CLIMATE_ID}) page_climate->execute();
 
   - id: page_climate
     mode: single
@@ -160,10 +181,7 @@ script:
           disp1->show_component("current_temp");
           char buffer[15];
           const bool useDecimal = (set_climate_temp_step % 10 != 0);
-
-          // Feed watchdog
-          delay(${DELAY_DEFAULT});
-          App.feed_wdt();
+          feed_wdt_delay(${DELAY_SHORT});
 
           if (set_climate_current_temp > -999) {  // Current temp enabled
             ESP_LOGV("${TAG_PAGE_CLIMATE}", "Show current temperature");
@@ -174,10 +192,7 @@ script:
             ESP_LOGV("${TAG_PAGE_CLIMATE}", "Show current temperature 'unavailable'");
             disp1->set_component_text("current_temp", id(mui_unavailable).c_str());
           }
-
-          // Feed watchdog
-          delay(${DELAY_DEFAULT});
-          App.feed_wdt();
+          feed_wdt_delay(${DELAY_SHORT});
 
           uint8_t active_slider = UINT8_MAX;
 
@@ -219,10 +234,7 @@ script:
               disp1->hide_component("target_low");
               disp1->hide_component("slider_low");
             }
-
-            // Feed watchdog
-            delay(${DELAY_DEFAULT});
-            App.feed_wdt();
+            feed_wdt_delay(${DELAY_SHORT});
 
             if (set_climate_target_temp_high > -999) {  // Target temp high enabled
               active_slider = 1;
@@ -241,10 +253,7 @@ script:
               disp1->hide_component("slider_high");
             }
           }
-
-          // Feed watchdog
-          delay(${DELAY_DEFAULT});
-          App.feed_wdt();
+          feed_wdt_delay(${DELAY_SHORT});
 
           if (
                 set_climate_target_temp > -999 or       // Target temp enabled
@@ -260,18 +269,20 @@ script:
             disp1->hide_component("decrease_temp");
             disp1->hide_component("increase_temp");
           }
-
-          // Feed watchdog
-          delay(${DELAY_DEFAULT});
-          App.feed_wdt();
+          feed_wdt_delay(${DELAY_SHORT});
 
           if (active_slider != UINT8_MAX)
             disp1->set_component_value("active_slider", active_slider);
 
           disp1->set_component_value("embedded", (set_climate_embedded_climate) ? 1 : 0);
 
+  - id: !extend stop_all
+    then:
+      - lambda: change_climate_state->stop();
+
   - id: !extend stop_page_constructors
     then:
-      - script.stop: page_climate
-      - script.stop: set_climate
+      - lambda: |-
+          page_climate->stop();
+          set_climate->stop();
 ...

@@ -1,103 +1,41 @@
+// base.cpp
 #include "base.h"
 #include "esphome/core/application.h"
 
 namespace nspanel_ha_blueprint {
 
-    // Define the global system flags variable (starts with all flags false)
-    uint16_t system_flags = 0;
+    static const char *TAG_COMPONENT_BASE = "nspanel.component.base";
 
-    // Define the global blueprint status flags variable (starts with all flags false)
-    uint8_t blueprint_status_flags = 0;
+    // Define the global system flags variable (starts with all flags false via default constructor)
+    SystemFlags system_flags{};
 
-    // System flag functions
+    // Define the global blueprint status flags variable (starts with all flags false via default constructor)
+    BlueprintStatusFlags blueprint_status_flags{};
 
-    void set_system_flag(NSPanelFlag flag) {
-        uint16_t mask = 1 << static_cast<uint8_t>(flag);
-        system_flags |= mask;
-    }
+    // Cached device name to avoid repeated lookups and string copies
+    std::string cached_device_name;
 
-    void clear_system_flag(NSPanelFlag flag) {
-        uint16_t mask = 1 << static_cast<uint8_t>(flag);
-        system_flags &= ~mask;
-    }
+    // Fire a Home Assistant event for NSPanel HA Blueprint
+    void fire_ha_event(const std::string &type, std::map<std::string, std::string> data) {
+        // Add device name and type to the event data
+        data["device_name"] = cached_device_name;
+        data["type"] = type;
 
-    bool is_system_flag_set(NSPanelFlag flag) {
-        return (system_flags & (1 << static_cast<uint8_t>(flag))) != 0;
-    }
+        // Log the event being fired
+        ESP_LOGD(TAG_COMPONENT_BASE, "Firing HA event: type=%s, device=%s", type.c_str(), cached_device_name.c_str());
 
-    bool are_all_system_flags_set(std::initializer_list<NSPanelFlag> required_flags) {
-        for (auto flag : required_flags) {
-            if (!is_system_flag_set(flag)) {
-                return false;
-            }  // if any flag not set
-        }  // for each required flag
-        return true;
-    }
+        // Log additional data if verbose logging is enabled
+        #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+        for (const auto &[key, value] : data) {
+            ESP_LOGVV(TAG_COMPONENT_BASE, "  Event data: %s=%s", key.c_str(), value.c_str());
+        }
+        #endif
 
-    bool are_any_system_flags_set(std::initializer_list<NSPanelFlag> check_flags) {
-        for (auto flag : check_flags) {
-            if (is_system_flag_set(flag)) {
-                return true;
-            }  // if any flag is set
-        }  // for each flag to check
-        return false;
-    }
+        // Create API device and fire the event
+        esphome::api::CustomAPIDevice ha_event;
+        ha_event.fire_homeassistant_event("esphome.nspanel_ha_blueprint", data);
 
-    bool is_device_ready_for_tasks() {
-        return
-            is_system_flag_set(NSPanelFlag::BOOT_COMPLETED) and  // Boot flag must be set to consider the system ready
-            !are_any_system_flags_set({  // Device is NOT ready if any of these blocking operations are active
-                NSPanelFlag::OTA_IN_PROGRESS,
-                NSPanelFlag::TFT_UPLOAD_ACTIVE,
-                NSPanelFlag::SAFE_MODE_ACTIVE
-            });
-    }
-
-    // Blueprint status flag functions
-
-    void set_blueprint_status_flag(BlueprintStatusFlag flag) {
-        uint8_t mask = 1 << static_cast<uint8_t>(flag);
-        blueprint_status_flags |= mask;
-    }
-
-    void clear_blueprint_status_flag(BlueprintStatusFlag flag) {
-        uint8_t mask = 1 << static_cast<uint8_t>(flag);
-        blueprint_status_flags &= ~mask;
-    }
-
-    bool is_blueprint_status_flag_set(BlueprintStatusFlag flag) {
-        return (blueprint_status_flags & (1 << static_cast<uint8_t>(flag))) != 0;
-    }
-
-    bool is_blueprint_fully_ready() {
-        // Check if all non-reserved blueprint status flags are set (bits 1-4)
-        // Active flags mask: 0x1E = 00011110 = bits 1-4
-        static constexpr uint8_t ACTIVE_FLAGS_MASK = 0x1E;
-        bool fully_ready = (blueprint_status_flags & ACTIVE_FLAGS_MASK) == ACTIVE_FLAGS_MASK;
-
-        // Automatically manage system BLUEPRINT_READY flag based on blueprint completion status
-        if (fully_ready) {
-            set_system_flag(NSPanelFlag::BLUEPRINT_READY);
-        } else {
-            clear_system_flag(NSPanelFlag::BLUEPRINT_READY);
-        }  // if fully_ready
-
-        return fully_ready;
-    }
-
-    float get_blueprint_status_percentage() {
-        // Active flags mask: bits 1-4 (PAGE_HOME, QRCODE, RELAY_SETTINGS, VERSION, HW_BUTTONS_SETTINGS)
-        static constexpr uint8_t ACTIVE_FLAGS_MASK = 0x3E;  // 00111110
-        static constexpr uint8_t MAX_ACTIVE_VALUE = 62;     // 2^1+2^2+2^3+2^4+2^5 = 2+4+8+16+32 = 62
-
-        uint8_t active_flags = blueprint_status_flags & ACTIVE_FLAGS_MASK;
-        return active_flags > 0 ? (static_cast<float>(active_flags) / MAX_ACTIVE_VALUE) * 100.0f : 0.0f;
-    }
-
-    uint8_t get_blueprint_status_raw_value() {
-        // Return only the active flags value (bits 1-5)
-        static constexpr uint8_t ACTIVE_FLAGS_MASK = 0x3E;  // 00111110
-        return blueprint_status_flags & ACTIVE_FLAGS_MASK;
+        ESP_LOGV(TAG_COMPONENT_BASE, "HA event 'esphome.nspanel_ha_blueprint' sent successfully");
     }
 
 }  // namespace nspanel_ha_blueprint

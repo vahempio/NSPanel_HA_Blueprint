@@ -33,7 +33,6 @@ api:
             notification_label = label;
             notification_text = message;
             notification_unread->publish_state(true);
-            add_component_visibility(${PAGE_HOME_ID}, "bt_notific", true);
             if (current_page_id == ${PAGE_NOTIFICATION_ID}) {
               page_notification->execute();
             } else {
@@ -95,13 +94,13 @@ script:
 
   - id: !extend boot
     then:
-      - script.execute: notification_clear
+      - lambda: |-
+          notification_clear->execute();
+          disp1->set_component_font("home.bt_notific", id(home_custom_buttons_font_id));
 
   - id: !extend page_change
     then:
-      - lambda: |-
-          if (new_page_id == ${PAGE_NOTIFICATION_ID})
-            page_notification->execute();
+      - lambda: if (new_page_id == ${PAGE_NOTIFICATION_ID}) page_notification->execute();
 
   - id: page_notification
     mode: single
@@ -114,11 +113,22 @@ script:
                                                                 id(mui_bytes_per_char)).c_str());
           }
 
+  - id: !extend page_home
+    then:
+      - lambda: |-
+          if (notification_text.empty()) {
+            disp1->set_component_font_color("bt_notific", Colors::BLACK);
+          } else {
+            disp1->set_component_font_color("bt_notific", notification_unread->state
+                                                        ? notification_icon_color_unread
+                                                        : notification_icon_color_normal);
+            disp1->show_component("bt_notific");
+          }
+
   - id: notification_clear
     mode: single
     then:
       - lambda: |-
-          add_component_visibility(${PAGE_HOME_ID}, "bt_notific", false);
           disp1->set_component_font_color("home.bt_notific", notification_icon_color_normal);
           if (current_page_id == ${PAGE_NOTIFICATION_ID})
             goto_page->execute(${PAGE_HOME_ID});
@@ -126,7 +136,7 @@ script:
           notification_text = "";
           notification_unread->publish_state(false);
           if (current_page_id == ${PAGE_HOME_ID})
-            disp1->hide_component("bt_notific");
+            disp1->set_component_font_color("bt_notific", Colors::BLACK);
 
   - id: notification_play_sound
     mode: single
@@ -134,18 +144,19 @@ script:
       - lambda: |-
           // Only when buzzer is available
           #ifdef NSPANEL_HA_BLUEPRINT_HW_BUZZER
-          if (id(notification_sound).state and id(buzzer_gain).state > 0)
-            id(buzzer).play("${tone_notification}");
+          if (notification_sound->state)
+            buzzer->play("${tone_notification}");
           #endif
 
   - id: !extend stop_all
     then:
-      - script.stop: notification_clear
-      - script.stop: notification_play_sound
+      - lambda: |-
+          notification_clear->stop();
+          notification_play_sound->stop();
 
   - id: !extend stop_page_constructors
     then:
-      - script.stop: page_notification
+      - lambda: page_notification->stop();
 
 switch:
   - name: Sound - Notification  # Notification sound

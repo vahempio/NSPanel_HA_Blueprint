@@ -7,33 +7,46 @@
 
 namespace nspanel_ha_blueprint {
 
-    bool isNumberChar(char c) {
-        return std::isdigit(static_cast<unsigned char>(c)) || c == '.' || c == '-' || c == ',';
-    }
-
     std::string adjustDecimalSeparator(const std::string& input, char decimalSeparator) {
         if (decimalSeparator == '.') {
             return input;
         }
 
+        // Find the end of the numeric part
         size_t numericEnd = 0;
-        for (; numericEnd < input.size() && isNumberChar(input[numericEnd]); ++numericEnd);
+        for (; numericEnd < input.size(); ++numericEnd) {
+            const char c = input[numericEnd];
+            if (!((c >= '0' && c <= '9') || c == '.' || c == '-' || c == ',')) {
+                break;
+            }
+        }
+
+        // If no numeric part found, return original
+        if (numericEnd == 0) {
+            return input;
+        }
 
         std::string numericPart = input.substr(0, numericEnd);
-        std::string suffix = input.substr(numericEnd);
 
+        // Validate that numericPart is actually a valid number
         char* end;
-        double val = strtod(numericPart.c_str(), &end);
+        strtod(numericPart.c_str(), &end);  // Result unused, only checking validity
 
         if (end != numericPart.c_str() && *end == '\0') {
+            // Find and replace decimal point
             size_t decimalPointPos = numericPart.find('.');
             if (decimalPointPos != std::string::npos) {
                 numericPart[decimalPointPos] = decimalSeparator;
             }
-            return numericPart + suffix;
-        } else {
-            return input;
+
+            // Append suffix if any
+            if (numericEnd < input.size()) {
+                numericPart += input.substr(numericEnd);
+            }
+            return numericPart;
         }
+
+        return input;
     }
 
     std::string wrapText(const std::string& text_to_display,
@@ -117,6 +130,31 @@ namespace nspanel_ha_blueprint {
             }
         }
         return false;
+    }
+
+    uint32_t decode_utf8(const char* bytes) {
+        if (!bytes || bytes[0] == '\0') {
+            return 0;
+        }
+        uint32_t code_point = 0;
+        unsigned char byte = static_cast<unsigned char>(bytes[0]);
+        if ((byte & 0x80) == 0x00) {
+            code_point = byte;
+        } else if ((byte & 0xE0) == 0xC0 && bytes[1] != '\0') {
+            code_point = ((byte & 0x1F) << 6) | (static_cast<unsigned char>(bytes[1]) & 0x3F);
+        } else if ((byte & 0xF0) == 0xE0 && bytes[1] != '\0' && bytes[2] != '\0') {
+            code_point = ((byte & 0x0F) << 12) |
+                            ((static_cast<unsigned char>(bytes[1]) & 0x3F) << 6) |
+                            (static_cast<unsigned char>(bytes[2]) & 0x3F);
+        } else if ((byte & 0xF8) == 0xF0 && bytes[1] != '\0' && bytes[2] != '\0' && bytes[3] != '\0') {
+            code_point = ((byte & 0x07) << 18) |
+                            ((static_cast<unsigned char>(bytes[1]) & 0x3F) << 12) |
+                            ((static_cast<unsigned char>(bytes[2]) & 0x3F) << 6) |
+                            (static_cast<unsigned char>(bytes[3]) & 0x3F);
+        } else {
+            code_point = 0;
+        }
+        return code_point;
     }
 
 }  // namespace nspanel_ha_blueprint

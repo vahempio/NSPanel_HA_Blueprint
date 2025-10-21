@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <cstring>  // For std::strcpy
 #include <string>
+#include "esphome/core/defines.h"
 
 namespace nspanel_ha_blueprint {
 
@@ -18,7 +19,12 @@ namespace nspanel_ha_blueprint {
     extern UtilitiesGroupValues *UtilitiesGroups;
 
     void resetUtilitiesGroups();
-    void cleanupUtilitiesGroups();
+    inline void cleanupUtilitiesGroups() {
+        if (UtilitiesGroups != nullptr) {
+            free(UtilitiesGroups);      // Compatible with both heap_caps_malloc and ps_malloc
+            UtilitiesGroups = nullptr;  // Prevent dangling pointers
+        }
+    };
     uint8_t findUtilitiesGroupIndex(const char* group_id);
 
     /**

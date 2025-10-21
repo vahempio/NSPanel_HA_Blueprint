@@ -249,11 +249,6 @@ Slider fanslider
             {
                 button_up.pco=10597
             }
-            printh 91
-            prints "touchevent",0
-            printh 00
-            prints rand,0
-            printh FF FF FF
         
 Button button_up
     Attributes
@@ -422,7 +417,7 @@ Timer timer0
             sys0=100*fanslider.val/fanslider.maxval
             covx sys0,va0.txt,0,0
             fan_value.txt=va0.txt+"%"
-            fansetting.txt="{\"page\": \"fan\", \"key\": \"percentage\", \"value\": "+va0.txt+"}"
+            fansetting.txt="fan,percentage,"+va0.txt
             printh 92
             prints "localevent",0
             printh 00
